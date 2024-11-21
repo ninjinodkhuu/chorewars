@@ -143,7 +143,7 @@ class MainScreen extends StatelessWidget {
                                   ),
                                 ),
                                 Text(
-                                  '€ 2500.00',
+                                  '\$ 2500.00',
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: Colors.white,
@@ -184,7 +184,7 @@ class MainScreen extends StatelessWidget {
                                   ),
                                 ),
                                 Text(
-                                  '€ 800.00',
+                                  '\$ 800.00',
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: Colors.white,

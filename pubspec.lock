@@ -101,10 +101,10 @@ packages:
     dependency: "direct main"
     description:
       name: equatable
-      sha256: b35578f687b79243d39008c44d638474d93e9091e578c970efef41ce0c3fa000
+      sha256: "567c64b3cb4cf82397aac55f4f0cbd3ca20d77c6c03bedbc4ceaddc08904aef7"
       url: "https://pub.dev"
     source: hosted
-    version: "2.0.6"
+    version: "2.0.7"
   expense_repository:
     dependency: "direct main"
     description:
@@ -156,10 +156,10 @@ packages:
     dependency: transitive
     description:
       name: firebase_core_platform_interface
-      sha256: e30da58198a6d4b49d5bce4e852f985c32cb10db329ebef9473db2b9f09ce810
+      sha256: b94b217e3ad745e784960603d33d99471621ecca151c99c670869b76e50ad2a6
       url: "https://pub.dev"
     source: hosted
-    version: "5.3.0"
+    version: "5.3.1"
   firebase_core_web:
     dependency: transitive
     description:
@@ -180,10 +180,10 @@ packages:
     dependency: "direct main"
     description:
       name: fl_chart
-      sha256: "974ea2a8096b612d233d07f475aa91111708e4de99d26f448aa756d46da7f19e"
+      sha256: "74959b99b92b9eebeed1a4049426fd67c4abc3c5a0f4d12e2877097d6a11ae08"
       url: "https://pub.dev"
     source: hosted
-    version: "0.69.1"
+    version: "0.69.2"
   flutter:
     dependency: "direct main"
     description: flutter

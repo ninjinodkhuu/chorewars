@@ -1,8 +1,14 @@
+import 'package:expenses_tracker/Data/Task.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class SquareCard extends StatelessWidget {
+  final Task task;
+  const SquareCard({super.key, required this.task});
   @override
   Widget build(BuildContext context) {
+    final DateFormat formatter = DateFormat('MMMM d, yyyy');
+    final String formattedDate = formatter.format(task.date);
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Container(
@@ -28,7 +34,6 @@ class SquareCard extends StatelessWidget {
               padding: const EdgeInsets.only(top: 12.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.start,
-
                 children: [
                   SizedBox(width: 15),
                   Container(
@@ -36,7 +41,8 @@ class SquareCard extends StatelessWidget {
                     height: 40, // Fixed height for the square box
                     decoration: BoxDecoration(
                       color: Colors.blue[600], // Fill color for the box
-                      borderRadius: BorderRadius.circular(8), // Optional: Rounded corners
+                      borderRadius:
+                          BorderRadius.circular(8), // Optional: Rounded corners
                     ),
                     child: Center(
                       child: Text(
@@ -45,10 +51,9 @@ class SquareCard extends StatelessWidget {
                       ),
                     ),
                   ),
-
                   SizedBox(width: 8),
                   Text(
-                    'Clean House',
+                    task.category,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -60,7 +65,7 @@ class SquareCard extends StatelessWidget {
             ),
             // Middle text
             Text(
-              'Clean Bathroom',
+              task.name,
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -72,7 +77,7 @@ class SquareCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: 16.0),
               child: Text(
-                'December 11th, 2024',
+                formattedDate,
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey[300],

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 class SquareCard2 extends StatelessWidget {
+  const SquareCard2({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -28,7 +30,6 @@ class SquareCard2 extends StatelessWidget {
               padding: const EdgeInsets.only(top: 12.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.start,
-
                 children: [
                   SizedBox(width: 15),
                   Container(
@@ -36,7 +37,8 @@ class SquareCard2 extends StatelessWidget {
                     height: 40, // Fixed height for the square box
                     decoration: BoxDecoration(
                       color: Colors.blue[600], // Fill color for the box
-                      borderRadius: BorderRadius.circular(8), // Optional: Rounded corners
+                      borderRadius:
+                          BorderRadius.circular(8), // Optional: Rounded corners
                     ),
                     child: Center(
                       child: Text(
@@ -45,7 +47,6 @@ class SquareCard2 extends StatelessWidget {
                       ),
                     ),
                   ),
-
                   SizedBox(width: 8),
                   Text(
                     'Clean House',

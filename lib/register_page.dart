@@ -3,13 +3,10 @@ import 'package:flutter/material.dart';
 import 'components/my_button.dart';
 import 'components/my_textfield.dart';
 import 'components/square_tile.dart';
-import 'home_page.dart';
-import 'auth_page.dart';
-
 
 class RegisterPage extends StatefulWidget {
   final Function()? onTap;
-  const RegisterPage({super.key,required this.onTap});
+  const RegisterPage({super.key, required this.onTap});
 
   @override
   State<RegisterPage> createState() => _RegisterPageState();
@@ -35,15 +32,15 @@ class _RegisterPageState extends State<RegisterPage> {
 
     // try creating the user
     try {
-     if(passwordController == ConfirmpasswordController){
-       await FirebaseAuth.instance.createUserWithEmailAndPassword(
-         email: emailController.text,
-         password: passwordController.text,
-       );
-     } else{
-       //show error mesage,passwords dont match
-       NonMatchingPasswordMessage();
-     }
+      if (passwordController == ConfirmpasswordController) {
+        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: emailController.text,
+          password: passwordController.text,
+        );
+      } else {
+        //show error mesage,passwords dont match
+        NonMatchingPasswordMessage();
+      }
       // pop the loading circle
       Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
@@ -80,6 +77,7 @@ class _RegisterPageState extends State<RegisterPage> {
       },
     );
   }
+
   void NonMatchingPasswordMessage() {
     showDialog(
       context: context,
@@ -96,6 +94,7 @@ class _RegisterPageState extends State<RegisterPage> {
       },
     );
   }
+
   // wrong password message popup
   void wrongPasswordMessage() {
     showDialog(
@@ -161,7 +160,6 @@ class _RegisterPageState extends State<RegisterPage> {
                   obscureText: true,
                 ),
 
-
                 const SizedBox(height: 10),
                 // confrim password textfield
                 MyTextField(
@@ -170,12 +168,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   obscureText: true,
                 ),
 
-
                 const SizedBox(height: 10),
-
-
-
-
 
                 const SizedBox(height: 25),
 

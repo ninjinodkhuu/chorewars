@@ -1,8 +1,9 @@
-import 'package:expenses_tracker/CalenderScreen.dart';
-import 'package:expenses_tracker/Data/Task.dart';
-import 'package:expenses_tracker/Expense_tracking.dart';
-import 'package:expenses_tracker/Gamification.dart';
-import 'package:expenses_tracker/home_screen.dart';
+import 'package:anotherattempchirewars/CalenderScreen.dart';
+import 'package:anotherattempchirewars/Data/Task.dart';
+import 'package:anotherattempchirewars/Expense_tracking.dart';
+import 'package:anotherattempchirewars/Gamification.dart';
+import 'package:anotherattempchirewars/home_screen.dart';
+import 'package:anotherattempchirewars/shopping_list.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -62,7 +63,8 @@ class _HomePageState extends State<HomePage> {
             BottomNavigationBarItem(
                 icon: Icon(Icons.calendar_today), label: ' '),
             BottomNavigationBarItem(icon: Icon(Icons.attach_money), label: ''),
-            BottomNavigationBarItem(icon: Icon(Icons.search), label: ''),
+            BottomNavigationBarItem(icon: Icon(Icons.leaderboard), label: ''),
+            BottomNavigationBarItem(icon: Icon(Icons.apple), label: ''),
           ],
           currentIndex: _selectedIndex, // Highlight the selected item
           onTap: _onItemTapped, // Call _onItemTapped when an item is tapped
@@ -83,7 +85,9 @@ class _HomePageState extends State<HomePage> {
           HomeScreen(), // Your current home page
           CalendarScreen(), // Placeholder for Calendar screen
           ExpenseTracking(), // Placeholder for Notifications screen
-          Gamification(), // Placeholder for Search screen
+          Gamification(),
+          ShoppingList(),
+          // Placeholder for Search screen
         ],
       ),
     );

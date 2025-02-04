@@ -138,7 +138,7 @@ class ShoppingList extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
+            SizedBox(
               width: 350,
               child: TextField(
                 controller: itemController,

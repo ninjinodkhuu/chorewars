@@ -1,24 +1,42 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:expenses_tracker/Data/Task.dart';
 import 'package:expenses_tracker/SquareCard.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-class HomeScreen extends StatelessWidget {
-  final user = FirebaseAuth.instance.currentUser!;
-  List<Task> tasks = [
-    Task(category: "Work", name: "Task 1", date: DateTime.now()),
-    Task(
-        category: "Home",
-        name: "Task 2",
-        date: DateTime.now().add(Duration(days: 1))),
-    Task(
-        category: "Personal",
-        name: "Task 3",
-        date: DateTime.now().add(Duration(days: 2))),
-  ];
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
 
-  HomeScreen({super.key});
-  // sign user out method
+  @override
+  _HomeScreenState createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  List<Task> tasks = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTasks();
+  }
+
+  Future<void> _loadTasks() async {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      String uid = user.uid;
+      QuerySnapshot snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('tasks')
+          .orderBy('date', descending: false)
+          .get();
+
+      setState(() {
+        tasks = snapshot.docs.map((doc) => Task.fromFirestore(doc)).toList();
+      });
+    }
+  }
+
   void signUserOut() {
     FirebaseAuth.instance.signOut();
   }
@@ -36,13 +54,27 @@ class HomeScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Hello ' + user.email! + "!",
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 23,
-                    fontWeight: FontWeight.bold,
-                  ),
+                FutureBuilder<User?>(
+                  future: Future.value(FirebaseAuth.instance.currentUser),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return CircularProgressIndicator();
+                    } else if (snapshot.hasError) {
+                      return Text('Error: ${snapshot.error}');
+                    } else if (!snapshot.hasData || snapshot.data == null) {
+                      return Text('No user found');
+                    } else {
+                      User user = snapshot.data!;
+                      return Text(
+                        'Hello ' + user.email! + "!",
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 23,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      );
+                    }
+                  },
                 ),
                 SizedBox(height: 8),
                 Text(

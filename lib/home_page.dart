@@ -1,15 +1,12 @@
-import 'package:anotherattempchirewars/CalenderScreen.dart';
-import 'package:anotherattempchirewars/Data/Task.dart';
-import 'package:anotherattempchirewars/Expense_tracking.dart';
-import 'package:anotherattempchirewars/Gamification.dart';
-import 'package:anotherattempchirewars/home_screen.dart';
-import 'package:anotherattempchirewars/shopping_list.dart';
+import 'package:expenses_tracker/shopping_list.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'CalenderScreen.dart';
+import 'Expense_tracking.dart';
+import 'Gamification.dart';
 import 'ProfileScreen.dart';
-import 'SquareCard.dart';
-import 'SquareCard2.dart';
+import 'home_screen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -64,7 +61,8 @@ class _HomePageState extends State<HomePage> {
                 icon: Icon(Icons.calendar_today), label: ' '),
             BottomNavigationBarItem(icon: Icon(Icons.attach_money), label: ''),
             BottomNavigationBarItem(icon: Icon(Icons.leaderboard), label: ''),
-            BottomNavigationBarItem(icon: Icon(Icons.apple), label: ''),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.add_shopping_cart), label: ''),
           ],
           currentIndex: _selectedIndex, // Highlight the selected item
           onTap: _onItemTapped, // Call _onItemTapped when an item is tapped
@@ -84,7 +82,7 @@ class _HomePageState extends State<HomePage> {
         children: [
           HomeScreen(), // Your current home page
           CalendarScreen(), // Placeholder for Calendar screen
-          ExpenseTracking(), // Placeholder for Notifications screen
+          ExpenseTracking(), // Placeholder for Notvsifications screen
           Gamification(),
           ShoppingList(),
           // Placeholder for Search screen

@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'components/my_button.dart';
 import 'components/my_textfield.dart';
@@ -18,6 +19,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final passwordController = TextEditingController();
   final ConfirmpasswordController = TextEditingController();
   String givenMessage = "";
+
   // sign user in method
   void signUserUp() async {
     // show loading circle
@@ -32,17 +34,31 @@ class _RegisterPageState extends State<RegisterPage> {
 
     // try creating the user
     try {
-      if (passwordController == ConfirmpasswordController) {
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      if (passwordController.text == ConfirmpasswordController.text) {
+        UserCredential userCredential =
+            await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: emailController.text,
           password: passwordController.text,
         );
+
+        // Add user email to Firestore
+        User? user = userCredential.user;
+        if (user != null) {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .set({
+            'email': emailController.text,
+          });
+        }
+
+        // pop the loading circle
+        Navigator.pop(context);
       } else {
-        //show error mesage,passwords dont match
+        // show error message, passwords don't match
+        Navigator.pop(context);
         NonMatchingPasswordMessage();
       }
-      // pop the loading circle
-      Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
       // pop the loading circle
       Navigator.pop(context);
@@ -86,7 +102,7 @@ class _RegisterPageState extends State<RegisterPage> {
           backgroundColor: Colors.deepPurple,
           title: Center(
             child: Text(
-              'Passwords dont match!',
+              'Passwords don\'t match!',
               style: TextStyle(color: Colors.white),
             ),
           ),
@@ -161,7 +177,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
 
                 const SizedBox(height: 10),
-                // confrim password textfield
+                // confirm password textfield
                 MyTextField(
                   controller: ConfirmpasswordController,
                   hintText: 'Confirm Password',
@@ -231,7 +247,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      'Already have an account ?',
+                      'Already have an account?',
                       style: TextStyle(color: Colors.grey[700]),
                     ),
                     const SizedBox(width: 4),

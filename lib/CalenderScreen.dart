@@ -88,7 +88,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
     TextEditingController categoryController = TextEditingController();
     TextEditingController nameController = TextEditingController();
     TextEditingController pointsController = TextEditingController();
-    int selectedPoints = 1;
     DateTime? selectedDate = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
@@ -113,23 +112,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   controller: nameController,
                   decoration: InputDecoration(labelText: 'Task Name'),
                 ),
-                DropdownButton<int>(
-                  value: selectedPoints,
-                  onChanged: (value) {
-                    setState(() {
-                      selectedPoints = value!;
-                    });
-                  },
-                  items: [
-                    DropdownMenuItem(child: Text('Easy 1pt'), value: 1),
-                    DropdownMenuItem(child: Text('Medium 2pts'), value: 2),
-                    DropdownMenuItem(child: Text('Hard 3pts'), value:3),
-                  ],
-                ),
                 TextField(
-                    controller: pointsController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(labelText: 'Custom Points'),
+                  controller: pointsController,
+                  decoration: InputDecoration(labelText: 'Task Points'),
+                  keyboardType: TextInputType.number,
                 ),
               ],
             ),
@@ -142,17 +128,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
               ),
               TextButton(
                 onPressed: () async {
-                  int finalPoints = pointsController.text.isEmpty
-                    ? selectedPoints
-                    : int.tryParse(pointsController.text) ?? selectedPoints;
                   if (categoryController.text.isNotEmpty &&
-                      nameController.text.isNotEmpty) {
+                      nameController.text.isNotEmpty &&
+                      pointsController.text.isNotEmpty) {
+                    int points = int.parse(pointsController.text);
                     Task newTask = Task(
                       id: '', // Firestore will generate the ID
                       category: categoryController.text,
                       name: nameController.text,
                       date: selectedDate,
-                      points: finalPoints,
+                      points: points,
                     );
                     await _addTask(newTask);
                     Navigator.of(context).pop();

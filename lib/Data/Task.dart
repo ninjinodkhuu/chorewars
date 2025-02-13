@@ -6,13 +6,15 @@ class Task {
   String name;
   DateTime date;
   bool done;
+  int points;
 
   Task(
       {required this.id,
       required this.category,
       required this.name,
       required this.date,
-      this.done = false});
+      this.done = false,
+      this.points = 1});
 
   factory Task.fromFirestore(DocumentSnapshot doc) {
     Map data = doc.data() as Map;
@@ -22,6 +24,7 @@ class Task {
       name: data['name'] ?? '',
       date: (data['date'] as Timestamp).toDate(),
       done: data['done'] ?? false,
+      points: data['points'] ?? 1,
     );
   }
 
@@ -31,6 +34,7 @@ class Task {
       'name': name,
       'date': date,
       'done': done,
+      'points': points,
     };
   }
 }

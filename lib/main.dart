@@ -1,6 +1,7 @@
 import 'package:expenses_tracker/auth_page.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,6 +13,9 @@ void main() async {
     storageBucket: "flutter-expense-tracker-a6400.firebasestorage.app",
   );
   await Firebase.initializeApp(options: options);
+
+  // Enable Firestore offline persistence
+  FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true);
   runApp(MyApp());
 }
 

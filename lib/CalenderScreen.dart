@@ -1,3 +1,4 @@
+import 'package:expenses_tracker/local_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
@@ -44,12 +45,30 @@ class _CalendarScreenState extends State<CalendarScreen> {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       String uid = user.uid;
-      await FirebaseFirestore.instance
+      DocumentReference taskRef = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
           .collection('tasks')
           .add(task.toFirestore());
+      
+      DocumentSnapshot userSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
 
+      final userData = userSnapshot.data() as Map<String, dynamic>?;
+      final notificationSettings = userData?['notificationSettings'] as Map<String, dynamic>?;
+      bool taskReminderEnabled = notificationSettings?['taskReminders'] ?? true;
+      int notificationLeadTime = notificationSettings?['notificationLeadTime'] ?? 1;
+      
+      if (taskReminderEnabled) {
+        LocalNotificationService.scheduleTaskReminder(
+          taskRef.id, 
+          task.name, 
+          task.date, 
+          notificationLeadTime,
+        );
+      }
       _loadTasks();
     }
   }
@@ -64,6 +83,27 @@ class _CalendarScreenState extends State<CalendarScreen> {
           .collection('tasks')
           .doc(task.id)
           .update(task.toFirestore());
+
+      DocumentSnapshot snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+
+      final data = snapshot.data() as Map<String, dynamic>?;
+      final notificationSettings = data?['notificationSettings'] as Map<String, dynamic>?;
+      bool taskReminders = notificationSettings?['taskReminders'] ?? true;
+      int leadTime = notificationSettings?['notificationLeadTime'] ?? 1;
+
+      if (taskReminders && !task.done) {
+        LocalNotificationService.scheduleTaskReminder(
+          task.id, 
+          task.name, 
+          task.date, 
+          leadTime
+        );
+      } else {
+        LocalNotificationService.cancelTaskReminder(task.id);
+      }
 
       _loadTasks();
     }

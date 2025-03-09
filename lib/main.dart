@@ -1,7 +1,9 @@
 import 'package:expenses_tracker/auth_page.dart';
+import 'package:expenses_tracker/local_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:timezone/data/latest.dart' as tz;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,6 +18,10 @@ void main() async {
 
   // Enable Firestore offline persistence
   FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true);
+  
+  tz.initializeTimeZones();
+  LocalNotificationService.initialize();
+  
   runApp(MyApp());
 }
 

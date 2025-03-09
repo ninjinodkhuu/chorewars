@@ -1,3 +1,4 @@
+import 'package:expenses_tracker/local_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -14,10 +15,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   List<String> householdMembers = [];
   Map<String, String> householdMemberEmails = {};
 
+  // Notification preferences
+  bool taskReminderEnabled = true;
+  bool expenseUpdateEnabled = true;
+  int notificationLeadTime = 1;
+  int expenseLeadTime = 1;
+
   @override
   void initState() {
     super.initState();
     _loadHouseholdMembers();
+    _loadNotificationSettings();
   }
 
   Future<void> _loadHouseholdMembers() async {
@@ -43,6 +51,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
           householdMemberEmails[memberId] = memberSnapshot['email'];
         });
       }
+    }
+  }
+
+  Future<void> _loadNotificationSettings() async {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      DocumentSnapshot snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final data = snapshot.data() as Map<String, dynamic>?;
+      final notificationSettings = data?['notificationSettings'] as Map<String, dynamic>?;
+      setState(() {
+        taskReminderEnabled = notificationSettings?['taskReminders'] ?? true;
+        expenseUpdateEnabled = notificationSettings?['expenseUpdates'] ?? true;
+        notificationLeadTime = notificationSettings?['notificationLeadTime'] ?? 1;
+        expenseLeadTime = notificationSettings?['expenseLeadTime'] ?? 1;
+      });
     }
   }
 
@@ -111,6 +137,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _saveNotificationSettings() async {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set({
+            'notificationSettings': {
+              'taskReminders': taskReminderEnabled,
+              'expenseUpdates': expenseUpdateEnabled,
+              'notificationLeadTime': notificationLeadTime,
+              'expenseLeadTime': expenseLeadTime,
+            },
+          }, SetOptions(merge: true));
+          /*if (taskReminderEnabled) {
+            // schedule task reminders
+            LocalNotificationService.scheduleTaskReminder(taskId, taskName, taskDueDate, notificationLeadTime);
+          } else {
+            // cancel scheduled task reminders
+            LocalNotificationService.cancelTaskReminder(taskId);
+          }
+          if (expenseUpdateEnabled) {
+            // setup expense update notification
+            LocalNotificationService.sendExpenseNotification(amount, selectedCategory);
+          } else {
+            // cancel expense update notifications
+          }*/
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Notification settings updated!')),
+      );
+      await _loadNotificationSettings();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -176,6 +236,74 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  Divider(),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Notification Preferences',
+                    style: TextStyle(
+                      fontSize: 18, 
+                      fontWeight: FontWeight.bold
+                    ),
+                  ),
+                  SwitchListTile(
+                    title: Text('Task Reminders'),
+                    value: taskReminderEnabled, 
+                    onChanged: (bool value) {
+                      setState(() {
+                        taskReminderEnabled = value;
+                      });
+                    },
+                  ),
+                  if (taskReminderEnabled)
+                    DropdownButtonFormField<int>(
+                      decoration: InputDecoration(
+                        labelText: 'Remind me of tasks:',
+                        prefixIcon: Icon(Icons.notifications_active),
+                      ),
+                      value: notificationLeadTime,
+                      items: [
+                        DropdownMenuItem(value: 1, child: Text('1 day before')),
+                        DropdownMenuItem(value: 2, child: Text('2 day before')),
+                        DropdownMenuItem(value: 3, child: Text('3 day before')),
+                      ], 
+                      onChanged: (value) {
+                        setState(() {
+                          notificationLeadTime = value!;
+                        });
+                      },
+                    ),
+                  SwitchListTile(
+                    title: Text('Expense Updates'),
+                    value: expenseUpdateEnabled, 
+                    onChanged: (bool value) {
+                      setState(() {
+                        expenseUpdateEnabled = value;
+                      });
+                    },
+                  ),
+                  if (expenseUpdateEnabled)
+                    DropdownButtonFormField<int>(
+                      decoration: InputDecoration(
+                        labelText: 'Remind me of expenses:',
+                        prefixIcon: Icon(Icons.attach_money),
+                      ),
+                      value: expenseLeadTime,
+                      items: [
+                        DropdownMenuItem(value: 1, child: Text('1 day before')),
+                        DropdownMenuItem(value: 2, child: Text('2 day before')),
+                        DropdownMenuItem(value: 3, child: Text('3 day before')),
+                      ], 
+                      onChanged: (value) {
+                        setState(() {
+                          expenseLeadTime = value!;
+                        });
+                      },
+                    ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _saveNotificationSettings, 
+                    child: Text('Save Notification Preferences'),
+                  ),
                   TextFormField(
                     decoration: const InputDecoration(
                       labelText: 'Email Address',

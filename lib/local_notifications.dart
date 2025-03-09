@@ -5,12 +5,14 @@ import 'package:timezone/data/latest.dart' as tz;
 class LocalNotificationService {
   static final _notificationsPlugin = FlutterLocalNotificationsPlugin();
   
+  // Initialize notifications plugin
   static void initialize() {
     InitializationSettings initializationSettingsAndroid = const InitializationSettings(
       android: AndroidInitializationSettings("@drawable/ic_launcher"),
       iOS: DarwinInitializationSettings(),
     );
     
+    // Initialize plugin with settings and a callback for when notifications are tapped
     _notificationsPlugin.initialize(
       initializationSettingsAndroid,
       onDidReceiveNotificationResponse: (details) {
@@ -20,6 +22,7 @@ class LocalNotificationService {
     tz.initializeTimeZones();
   }
 
+  // Schedules task reminder notification
   static Future<void> scheduleTaskReminder(String taskId, String taskName, DateTime dueDate, int leadTimeDays) async {
     final scheduledTime = tz.TZDateTime.from(dueDate.subtract(Duration(days: leadTimeDays)), tz.local);
     await _notificationsPlugin.zonedSchedule(
@@ -43,27 +46,29 @@ class LocalNotificationService {
     );
   }
 
+  // Cancels a scheduled task reminder
   static void cancelTaskReminder(String taskId) {
     int notificationId = taskId.hashCode;
     _notificationsPlugin.cancel(notificationId);
   }
 
+  // Shows expense notification
   static Future<void> sendExpenseNotification(double amount, String category) async {
     await _notificationsPlugin.show(
       0, 
-      'Expense Added', 
+      'Expense Added',  // title
       'An expense of \$${amount.toStringAsFixed(2)} was added in $category.', 
       const NotificationDetails(
         android: AndroidNotificationDetails(
-          'expense_updates', 
-          'Expense Updates',
+          'expense_updates',  // channel id
+          'Expense Updates',  // channel name
           channelDescription: 'Notifications for new expenses',
           importance: Importance.high,
           priority: Priority.high,
         ),
         iOS: DarwinNotificationDetails(),
       ),
-      payload: 'expense_update', 
+      payload: 'expense_update',  // helps handle notification tap
     );
   }
 }

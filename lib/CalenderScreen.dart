@@ -24,6 +24,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     _loadTasks();
   }
 
+  // Loads tasks for the current user from Firestore
   Future<void> _loadTasks() async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -41,16 +42,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
   }
 
+  // Adds a new task to Firestore and schedules a notification if enabled
   Future<void> _addTask(Task task) async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       String uid = user.uid;
+      // Adds task and retrieves generated document ID
       DocumentReference taskRef = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
           .collection('tasks')
           .add(task.toFirestore());
       
+      // Load the user's notification settings
       DocumentSnapshot userSnapshot = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
@@ -58,9 +62,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
       final userData = userSnapshot.data() as Map<String, dynamic>?;
       final notificationSettings = userData?['notificationSettings'] as Map<String, dynamic>?;
+      
       bool taskReminderEnabled = notificationSettings?['taskReminders'] ?? true;
       int notificationLeadTime = notificationSettings?['notificationLeadTime'] ?? 1;
       
+      // Schedule a task reminder if notifications are enabled
       if (taskReminderEnabled) {
         LocalNotificationService.scheduleTaskReminder(
           taskRef.id, 
@@ -73,6 +79,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
   }
 
+  // Updates an existing task and schedules/cancels notification based on updated settings
   Future<void> _updateTask(Task task) async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -94,7 +101,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
       bool taskReminders = notificationSettings?['taskReminders'] ?? true;
       int leadTime = notificationSettings?['notificationLeadTime'] ?? 1;
 
+      // If reminders are enabled and task is not marked done
       if (taskReminders && !task.done) {
+        // Schedule a notification
         LocalNotificationService.scheduleTaskReminder(
           task.id, 
           task.name, 
@@ -109,6 +118,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
   }
 
+  // Filters tasks for the selected day
   List<Task> _getTasksForDay(DateTime day) {
     List<Task> tasksForDay =
         tasks.where((task) => isSameDay(task.date, day)).toList();
@@ -124,10 +134,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return tasksForDay;
   }
 
+  // Shows dialog to add a new task
   Future<void> _showAddTaskDialog() async {
     TextEditingController categoryController = TextEditingController();
     TextEditingController nameController = TextEditingController();
     TextEditingController pointsController = TextEditingController();
+    
+    // Ask user to select a date for the new task
     DateTime? selectedDate = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),

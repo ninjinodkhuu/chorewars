@@ -11,37 +11,42 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  // Controller for inviting household members via email
   final TextEditingController _inviteEmailController = TextEditingController();
   List<String> householdMembers = [];
   Map<String, String> householdMemberEmails = {};
 
-  // Notification preferences
-  bool taskReminderEnabled = true;
+  // Notification preferences 
+  bool taskReminderEnabled = true;  // toggle for task reminders
   bool expenseUpdateEnabled = true;
-  int notificationLeadTime = 1;
+  int notificationLeadTime = 1;  // dropdown for task reminder
   int expenseLeadTime = 1;
 
   @override
   void initState() {
     super.initState();
     _loadHouseholdMembers();
-    _loadNotificationSettings();
+    _loadNotificationSettings();  // loads notification preferences from firestore
   }
 
+  // Loads household members for the current user from Firestore
   Future<void> _loadHouseholdMembers() async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
+      // Get current user document
       DocumentSnapshot snapshot = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
-
+      
+      // Extract household member IDs
       List<String> memberIds =
           List<String>.from(snapshot['householdMembers'] ?? []);
       setState(() {
         householdMembers = memberIds;
       });
 
+      // Load each member's email address
       for (String memberId in memberIds) {
         DocumentSnapshot memberSnapshot = await FirebaseFirestore.instance
             .collection('users')
@@ -54,15 +59,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // Loads the user's notification preferences from Firestore
   Future<void> _loadNotificationSettings() async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
+      // Get user document data
       DocumentSnapshot snapshot = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
       final data = snapshot.data() as Map<String, dynamic>?;
+      // Extract notification settings from the document
       final notificationSettings = data?['notificationSettings'] as Map<String, dynamic>?;
+      
       setState(() {
         taskReminderEnabled = notificationSettings?['taskReminders'] ?? true;
         expenseUpdateEnabled = notificationSettings?['expenseUpdates'] ?? true;
@@ -72,6 +81,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // Invites a new household member using their email address
   Future<void> _inviteToHousehold() async {
     String email = _inviteEmailController.text.trim();
     if (email.isNotEmpty) {
@@ -137,9 +147,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // Saves notification preferences to Firestore when "save" button is pressed
   Future<void> _saveNotificationSettings() async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
+      // Save settings under the user's document
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -151,22 +163,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               'expenseLeadTime': expenseLeadTime,
             },
           }, SetOptions(merge: true));
-          /*if (taskReminderEnabled) {
-            // schedule task reminders
-            LocalNotificationService.scheduleTaskReminder(taskId, taskName, taskDueDate, notificationLeadTime);
-          } else {
-            // cancel scheduled task reminders
-            LocalNotificationService.cancelTaskReminder(taskId);
-          }
-          if (expenseUpdateEnabled) {
-            // setup expense update notification
-            LocalNotificationService.sendExpenseNotification(amount, selectedCategory);
-          } else {
-            // cancel expense update notifications
-          }*/
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Notification settings updated!')),
       );
+      // Reload settings
       await _loadNotificationSettings();
     }
   }
@@ -238,6 +238,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 16),
                   Divider(),
                   const SizedBox(height: 10),
+                  // Header for notification preferences section
                   Text(
                     'Notification Preferences',
                     style: TextStyle(
@@ -245,6 +246,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       fontWeight: FontWeight.bold
                     ),
                   ),
+                  // Toggle for task reminders
                   SwitchListTile(
                     title: Text('Task Reminders'),
                     value: taskReminderEnabled, 
@@ -254,6 +256,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       });
                     },
                   ),
+                  // Dropdown for tasks when reminders are enabled
                   if (taskReminderEnabled)
                     DropdownButtonFormField<int>(
                       decoration: InputDecoration(
@@ -272,6 +275,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         });
                       },
                     ),
+                  // Toggle for expense updates notification
                   SwitchListTile(
                     title: Text('Expense Updates'),
                     value: expenseUpdateEnabled, 
@@ -281,6 +285,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       });
                     },
                   ),
+                  // Dropdown for expenses when reminders are enabled
                   if (expenseUpdateEnabled)
                     DropdownButtonFormField<int>(
                       decoration: InputDecoration(

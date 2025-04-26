@@ -147,15 +147,30 @@ class ShoppingList extends StatelessWidget {
             ),
             ElevatedButton(
               onPressed: () {
-                if (uid.isNotEmpty) {
-                  addItem(uid, itemController.text);
-                  itemController.clear();
-                } else {
+                if (uid.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('No user logged in')),
+                    SnackBar(
+                      content: Text('No user logged in.'),
+                      backgroundColor: Colors.red,
+                    ),
                   );
+                  return;
                 }
+
+                if (itemController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Please name your item!'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                addItem(uid, itemController.text.trim());
+                itemController.clear();
               },
+
               child: Text('Add Item'),
             ),
             Expanded(
@@ -217,9 +232,42 @@ class ShoppingList extends StatelessWidget {
                                   : Icons.radio_button_unchecked,
                               color: itemDone ? Colors.green : null,
                             ),
-                            onPressed: () {
-                              toggleDone(uid, itemId, itemDone);
+                            onPressed: () async {
+                              try {
+                                await toggleDone(uid, itemId, itemDone);
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      itemDone ? 'Item marked incomplete' : '✅ Item completed!',
+                                      style: TextStyle(fontSize: 16),
+                                    ),
+                                    backgroundColor: itemDone ? Colors.orange : Colors.green,
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(15),
+                                    ),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Something went wrong!',
+                                      style: TextStyle(fontSize: 16),
+                                    ),
+                                    backgroundColor: Colors.red,
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(15),
+                                    ),
+                                  ),
+                                );
+                                print('Error toggling shopping item: $e');
+                              }
                             },
+
                           ),
                           title: Text(
                             itemName,

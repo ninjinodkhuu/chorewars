@@ -24,50 +24,83 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   Future<void> _loadTasks() async {
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      String uid = user.uid;
-      QuerySnapshot snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('tasks')
-          .orderBy('date', descending: false)
-          .get();
+    try {
+      User? user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        String uid = user.uid;
+        QuerySnapshot snapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('tasks')
+            .orderBy('date', descending: false)
+            .get();
 
-      setState(() {
-        tasks = snapshot.docs.map((doc) => Task.fromFirestore(doc)).toList();
-      });
+        setState(() {
+          tasks = snapshot.docs.map((doc) => Task.fromFirestore(doc)).toList();
+        });
+      }
+    } catch (e) {
+      print('Error loading tasks: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load tasks.'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
+
 
   Future<void> _addTask(Task task) async {
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      String uid = user.uid;
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('tasks')
-          .add(task.toFirestore());
+    try {
+      User? user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        String uid = user.uid;
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('tasks')
+            .add(task.toFirestore());
 
-      _loadTasks();
+        _loadTasks();
+      }
+    } catch (e) {
+      print('Error adding task: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to add task.'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
+
 
   Future<void> _updateTask(Task task) async {
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      String uid = user.uid;
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('tasks')
-          .doc(task.id)
-          .update(task.toFirestore());
+    try {
+      User? user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        String uid = user.uid;
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('tasks')
+            .doc(task.id)
+            .update(task.toFirestore());
 
-      _loadTasks();
+        _loadTasks();
+      }
+    } catch (e) {
+      print('Error updating task: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update task.'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
+
 
   List<Task> _getTasksForDay(DateTime day) {
     List<Task> tasksForDay =
@@ -136,8 +169,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       nameController.text.isNotEmpty &&
                       pointsController.text.isNotEmpty &&
                       priorityController.text.isNotEmpty) {
-                    int points = int.tryParse(pointsController.text) ?? 1;
-                    int priority = int.tryParse(priorityController.text) ?? 1;
+
+                    int? points = int.tryParse(pointsController.text);
+                    int? priority = int.tryParse(priorityController.text);
+
+                    if (points == null || priority == null || priority < 1 || priority > 5) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Priority must be between 1 and 5. Points must be a number.'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return; // ❗ Stop if invalid
+                    }
+
                     Task newTask = Task(
                       id: '',
                       category: categoryController.text,
@@ -147,10 +192,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       comments: commentsController.text,
                       priority: priority,
                     );
+
                     await _addTask(newTask);
                     Navigator.of(context).pop();
                   }
                 },
+
                 child: Text('Add'),
               ),
             ],
@@ -209,11 +256,45 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 color: task.done ? Colors.green : null,
               ),
               onPressed: () async {
-                setState(() {
-                  task.done = !task.done;
-                });
-                await _updateTask(task);
+                try {
+                  setState(() {
+                    task.done = !task.done;
+                  });
+
+                  await _updateTask(task);
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        task.done ? '🎉 Task Completed!' : 'Task Marked Incomplete',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                      backgroundColor: task.done ? Colors.green : Colors.orange,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Something went wrong. Please try again.',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                      backgroundColor: Colors.red,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                  );
+                  print('Error completing task: $e');
+                }
               },
+
             ),
             title: Text(task.name),
             subtitle: Column(

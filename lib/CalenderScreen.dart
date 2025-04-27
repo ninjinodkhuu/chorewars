@@ -205,6 +205,135 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
   }
 
+  // Shows error dialog for invalid input
+  void _showErrorDialog(String title, String message) {
+    showDialog(
+      context: context, 
+      builder: (context) {
+        return AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),  // Closes dialog
+              child: Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Shows confirmation dialog before updating task points
+  void _showConfirmationDialog(int oldPoints, int newPoints, Task task) {
+    // Calculate current and updated total points
+    final int currentTotal = _calculateCurrentTotal();
+    final int updatedTotal = (currentTotal - oldPoints) + newPoints;
+    
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Confirm Points Change'),
+          content: Text('Change points from $oldPoints to $newPoints?\n\n'
+          'Your total will change from $currentTotal to $updatedTotal.',),
+          actions: [
+            // no button
+            TextButton(
+              onPressed: () {
+                // Close dialog without saving
+                Navigator.of(context).pop();
+              },
+              child: Text('No'),
+            ),
+
+            // yes button - update points
+            TextButton(
+              onPressed: () async {
+                setState(() {
+                  task.points = newPoints;
+                });
+                await _updateTask(task);
+                Navigator.of(context).pop();
+                Navigator.of(context).pop();
+              },
+              child: Text('Yes'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Calculates the current total points for all tasks
+  int _calculateCurrentTotal() {
+    // Adds up points for all tasks
+    return tasks.fold(0, (sum, t) => sum + t.points);
+  }
+
+  // Shows dialog to edit task points
+  void _showEditTaskDialog(Task task) {
+    final int oldPoints = task.points;
+    // Controller to hold the new points value
+    final TextEditingController pointsController = TextEditingController(
+      text: task.points.toString()
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Edit Task Points'),
+          // User can input new points value
+          content: TextField(
+            controller: pointsController,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(labelText: 'Points'),
+          ),
+          actions: [
+            // Cancel button
+            TextButton(
+              onPressed: () {
+                // Close diLog without saving
+                Navigator.of(context).pop();
+              },
+              child: Text('Cancel'),
+            ),
+            // Save button
+            TextButton(
+              onPressed: () async {
+                // Convert user input to int
+                int? newPoints = int.tryParse(pointsController.text);
+                
+                // Check if invalid input like letters or blank
+                if (newPoints == null) {
+                  _showErrorDialog('Invalid points value!', 'Please enter a valid number');
+                  return;
+                }
+
+                // Check if input is negative
+                if (newPoints < 0) {
+                  _showErrorDialog('Invalid points value!', 'Points cannot be negative');
+                  return;
+                }
+
+                // Cap at 10 points
+                if (newPoints > 10) {
+                  _showErrorDialog('Invalid points value!', 'Points cannot exceed 10');
+                  return;
+                }
+
+                // Update task points
+                _showConfirmationDialog(oldPoints, newPoints, task);
+              },
+              child: Text('Save'),
+            )
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final DateFormat formatter = DateFormat('MMMM d, yyyy');
@@ -264,6 +393,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 ),
                 title: Text(task.name),
                 subtitle: Text(task.category),
+                trailing: IconButton(
+                  icon: Icon(Icons.edit),
+                  onPressed: () {
+                    // Show dialog to edit task
+                    _showEditTaskDialog(task);
+                  }
+                )
               )),
         ],
       ),

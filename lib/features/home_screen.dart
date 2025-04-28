@@ -1,5 +1,5 @@
-import '../Data/Task.dart';
-import '../components/SquareCard.dart';
+import '../Models/task_model.dart';
+import '../core/widgets/SquareCard.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:cw/components/button_theme.dart';
-import 'package:cw/components/input_decoration_theme.dart';
+import 'package:cw/core/widgets/button_theme.dart';
+import 'package:cw/core/input_decoration_theme.dart';
 
 import 'constants.dart';
-import 'checkbox_themedata.dart';
+import 'widgets/checkbox_themedata.dart';
 import 'theme_data.dart';
 
 class AppTheme {

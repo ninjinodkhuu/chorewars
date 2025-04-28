@@ -31,7 +31,7 @@ class TaskHistory extends StatelessWidget {
 
       for (var task in tasksSnapshot.docs) {
         Map<String, dynamic> data = task.data();
-        print('Processing task: ${data}');
+        print('Processing task: $data');
 
         if (data['completed_at'] != null) {
           totalTasks++;

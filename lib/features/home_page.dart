@@ -1,9 +1,9 @@
-import 'package:cw/CalenderScreen.dart';
+import 'package:cw/features/CalenderScreen.dart';
 //import 'Data/Task.dart';
-import 'package:cw/Expense_tracking.dart';
-import 'package:cw/Gamification.dart';
-import 'package:cw/home_screen.dart';
-import 'package:cw/shopping_list.dart';
+import 'package:cw/features/Expense_tracking.dart';
+import 'package:cw/features/Gamification.dart';
+import 'package:cw/features/home_screen.dart';
+import 'package:cw/features/shopping_list.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'ProfileScreen.dart';

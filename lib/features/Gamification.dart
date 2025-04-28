@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cw/task_history.dart';
+import 'package:cw/features/task_history.dart';
 
 class Gamification extends StatelessWidget {
   const Gamification({super.key});

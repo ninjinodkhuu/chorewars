@@ -77,6 +77,74 @@ class TaskHistory extends StatelessWidget {
     }
   }
 
+  // Method to update household stats after task changes
+  Future<void> updateHouseholdStats(String householdID) async {
+    try {
+      final membersSnapshot = await FirebaseFirestore.instance
+          .collection('household')
+          .doc(householdID)
+          .collection('members')
+          .get();
+
+      int totalTasks = 0;
+      int completedTasks = 0;
+      int totalPoints = 0;
+      int totalTimeMinutes = 0;
+
+      for (var member in membersSnapshot.docs) {
+        final tasksSnapshot = await FirebaseFirestore.instance
+            .collection('household')
+            .doc(householdID)
+            .collection('members')
+            .doc(member.id)
+            .collection('tasks')
+            .get();
+
+        for (var task in tasksSnapshot.docs) {
+          final data = task.data();
+          if (data['completed_at'] != null) {
+            totalTasks++;
+            if (data['done'] == true) {
+              completedTasks++;
+              var points = data['points'];
+              if (points != null) {
+                totalPoints += (points is String)
+                    ? int.tryParse(points) ?? 0
+                    : points as int;
+              }
+              var timeSpent = data['timeSpent'];
+              if (timeSpent != null) {
+                totalTimeMinutes += (timeSpent is String)
+                    ? int.tryParse(timeSpent) ?? 0
+                    : timeSpent as int;
+              }
+            }
+          }
+        }
+      }
+
+      double completionRate =
+          totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0.0;
+      double avgPoints =
+          completedTasks > 0 ? totalPoints / completedTasks : 0.0;
+      int avgTimeMinutes =
+          completedTasks > 0 ? totalTimeMinutes ~/ completedTasks : 0;
+
+      // Update the household document with the new stats
+      await FirebaseFirestore.instance
+          .collection('household')
+          .doc(householdID)
+          .set({
+        'completionRate': completionRate,
+        'avgPoints': avgPoints,
+        'avgTimeMinutes': avgTimeMinutes,
+        'lastUpdated': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      print('Error updating household stats: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(

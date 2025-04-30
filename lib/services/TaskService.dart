@@ -12,6 +12,25 @@ class TaskService {
     required int timeSpentMinutes,
   }) async {
     try {
+      // First check if the task is already completed
+      final taskDoc = await _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('members')
+          .doc(memberId)
+          .collection('tasks')
+          .doc(taskId)
+          .get();
+
+      if (!taskDoc.exists) {
+        throw Exception('Task not found');
+      }
+
+      final taskData = taskDoc.data()!;
+      if (taskData['done'] == true) {
+        throw Exception('Task is already completed');
+      }
+
       // Get the member document to update their stats
       DocumentSnapshot memberDoc = await _firestore
           .collection('households')

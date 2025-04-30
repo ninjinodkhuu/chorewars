@@ -187,6 +187,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
         final dueDate = data['dueDate'];
         final acceptedAt = data['acceptedAt'];
         final startedAt = data['startedAt'];
+        final completedAt = data['completed_at'];
+        final bool done = data['done'] ?? false;
 
         // Default to veryEasy if no difficulty is specified
         TaskDifficulty difficulty = TaskDifficulty.veryEasy;
@@ -228,6 +230,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
               acceptedAt != null ? (acceptedAt as Timestamp).toDate() : null,
           startedAt:
               startedAt != null ? (startedAt as Timestamp).toDate() : null,
+          completedAt:
+              completedAt != null ? (completedAt as Timestamp).toDate() : null,
+          done: done,
         );
       }).toList();
       yield tasks;
@@ -235,6 +240,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   List<Task> _filterTasksForDay(List<Task> tasks, DateTime day) {
+    // Always show tasks on their due date, regardless of completion status
     return tasks.where((task) => isSameDay(task.date, day)).toList();
   }
 
@@ -242,7 +248,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final TextEditingController nameController = TextEditingController();
     final TextEditingController timeEstimateController =
         TextEditingController();
-    final TextEditingController categoryController = TextEditingController();
     String? selectedMemberId;
     TaskDifficulty selectedDifficulty = TaskDifficulty.veryEasy;
     DateTime selectedDate = _selectedDay;
@@ -266,15 +271,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Task Name',
                     hintText: 'Enter task name',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: categoryController,
-                  decoration: const InputDecoration(
-                    labelText: 'Category',
-                    hintText: 'Enter task category',
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -381,7 +377,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     householdId: householdId,
                     memberId: assignedMemberId,
                     name: nameController.text.trim(),
-                    category: categoryController.text.trim(),
+                    category: "", // Pass empty string for category
                     dueDate: selectedDate,
                     difficulty: selectedDifficulty,
                     estimatedMinutes: timeEstimate,
@@ -664,15 +660,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     final task = tasksForDay[index];
 
                     // Define task status indicators
-                    String taskStatus = 'Pending';
-                    Color statusColor = Colors.orange;
+                    String taskStatus;
+                    Color statusColor;
 
-                    if (task.startedAt != null) {
+                    if (task.done) {
+                      taskStatus = 'Completed';
+                      statusColor = Colors.green;
+                    } else if (task.startedAt != null) {
                       taskStatus = 'In Progress';
                       statusColor = Colors.blue;
                     } else if (task.acceptedAt != null) {
                       taskStatus = 'Accepted';
-                      statusColor = Colors.green;
+                      statusColor = Colors.orange;
+                    } else {
+                      taskStatus = 'Pending';
+                      statusColor = Colors.grey;
                     }
 
                     return Card(
@@ -705,16 +707,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const SizedBox(height: 4),
-                                Text(
-                                  task.category.isEmpty
-                                      ? 'No Category'
-                                      : task.category,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
                                 const SizedBox(height: 4),
                                 Row(
                                   children: [
@@ -762,93 +754,102 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.end,
                               children: [
-                                if (task.acceptedAt == null) ...[
-                                  ElevatedButton.icon(
-                                    icon: const Icon(Icons.check, size: 16),
-                                    label: const Text('Accept'),
-                                    onPressed: () async {
-                                      String householdId =
-                                          await _getHouseholdId();
-                                      try {
-                                        await TaskService.acceptTask(
-                                          householdId: householdId,
-                                          memberId: user.uid,
-                                          taskId: task.id,
-                                        );
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          const SnackBar(
-                                            content: Text('Task accepted'),
-                                            backgroundColor: Colors.green,
-                                          ),
-                                        );
-                                      } catch (e) {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                                'Error accepting task: $e'),
-                                            backgroundColor: Colors.red,
-                                          ),
-                                        );
-                                      }
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.green,
-                                      foregroundColor: Colors.white,
+                                if (!task.done) ...[
+                                  if (task.acceptedAt == null)
+                                    ElevatedButton.icon(
+                                      icon: const Icon(Icons.check, size: 16),
+                                      label: const Text('Accept'),
+                                      onPressed: () async {
+                                        String householdId =
+                                            await _getHouseholdId();
+                                        try {
+                                          await TaskService.acceptTask(
+                                            householdId: householdId,
+                                            memberId: user.uid,
+                                            taskId: task.id,
+                                          );
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              const SnackBar(
+                                                content: Text('Task accepted'),
+                                                backgroundColor: Colors.green,
+                                              ),
+                                            );
+                                          }
+                                        } catch (e) {
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                    'Error accepting task: $e'),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green,
+                                        foregroundColor: Colors.white,
+                                      ),
+                                    )
+                                  else if (task.startedAt == null)
+                                    ElevatedButton.icon(
+                                      icon: const Icon(Icons.play_arrow,
+                                          size: 16),
+                                      label: const Text('Start'),
+                                      onPressed: () async {
+                                        String householdId =
+                                            await _getHouseholdId();
+                                        try {
+                                          await TaskService.startTask(
+                                            householdId: householdId,
+                                            memberId: user.uid,
+                                            taskId: task.id,
+                                          );
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              const SnackBar(
+                                                content: Text('Task started'),
+                                                backgroundColor: Colors.blue,
+                                              ),
+                                            );
+                                          }
+                                        } catch (e) {
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                    'Error starting task: $e'),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.blue,
+                                        foregroundColor: Colors.white,
+                                      ),
+                                    )
+                                  else
+                                    ElevatedButton.icon(
+                                      icon:
+                                          const Icon(Icons.done_all, size: 16),
+                                      label: const Text('Complete'),
+                                      onPressed: () {
+                                        _showCompleteTaskDialog(task);
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.purple,
+                                        foregroundColor: Colors.white,
+                                      ),
                                     ),
-                                  ),
-                                ] else if (task.startedAt == null) ...[
-                                  ElevatedButton.icon(
-                                    icon:
-                                        const Icon(Icons.play_arrow, size: 16),
-                                    label: const Text('Start'),
-                                    onPressed: () async {
-                                      String householdId =
-                                          await _getHouseholdId();
-                                      try {
-                                        await TaskService.startTask(
-                                          householdId: householdId,
-                                          memberId: user.uid,
-                                          taskId: task.id,
-                                        );
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          const SnackBar(
-                                            content: Text('Task started'),
-                                            backgroundColor: Colors.blue,
-                                          ),
-                                        );
-                                      } catch (e) {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                            content:
-                                                Text('Error starting task: $e'),
-                                            backgroundColor: Colors.red,
-                                          ),
-                                        );
-                                      }
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.blue,
-                                      foregroundColor: Colors.white,
-                                    ),
-                                  ),
-                                ] else ...[
-                                  ElevatedButton.icon(
-                                    icon: const Icon(Icons.done_all, size: 16),
-                                    label: const Text('Complete'),
-                                    onPressed: () {
-                                      // Show completion dialog
-                                      _showCompleteTaskDialog(task);
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.purple,
-                                      foregroundColor: Colors.white,
-                                    ),
-                                  ),
-                                ],
+                                ]
                               ],
                             ),
                           ),

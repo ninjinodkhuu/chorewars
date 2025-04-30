@@ -60,56 +60,69 @@ class Gamification extends StatelessWidget {
           .get();
 
       double totalCompletionRate = 0.0;
-      double totalPoints = 0.0;
-      int totalTimeMinutes = 0;
       int memberCount = 0;
 
       for (var member in membersSnapshot.docs) {
-        final memberData = member.data();
-        int points = (memberData['totalPoints'] ?? 0) as int;
-        int completedTasks = (memberData['completedTasks'] ?? 0) as int;
-        int totalTasks = (memberData['totalTasks'] ?? 0) as int;
+        // Get all tasks for this member
+        final tasksSnapshot = await FirebaseFirestore.instance
+            .collection('households')
+            .doc(householdID)
+            .collection('members')
+            .doc(member.id)
+            .collection('tasks')
+            .get();
 
-        if (totalTasks > 0) {
+        int memberCompletedTasks = 0;
+        int memberTotalTasks = 0;
+        int memberTotalPoints = 0;
+        int memberTimeMinutes = 0;
+
+        // Calculate member stats from tasks
+        for (var task in tasksSnapshot.docs) {
+          final taskData = task.data();
+          memberTotalTasks++;
+
+          if (taskData['done'] == true && taskData['completed_at'] != null) {
+            memberCompletedTasks++;
+            // Sum up points only from completed tasks
+            memberTotalPoints += (taskData['points'] ?? 0) as int;
+            memberTimeMinutes += (taskData['timeSpent'] ?? 0) as int;
+          }
+        }
+
+        // Only update stats if member has tasks
+        if (memberTotalTasks > 0) {
           memberCount++;
-          totalCompletionRate += (completedTasks / totalTasks) * 100;
-          totalPoints += points;
-          // Get time spent from the tasks collection
-          final tasksSnapshot = await FirebaseFirestore.instance
+          totalCompletionRate += memberTotalTasks > 0
+              ? (memberCompletedTasks / memberTotalTasks) * 100
+              : 0.0;
+
+          // Update member document with recalculated stats
+          await FirebaseFirestore.instance
               .collection('households')
               .doc(householdID)
               .collection('members')
               .doc(member.id)
-              .collection('tasks')
-              .where('done', isEqualTo: true)
-              .get();
-
-          for (var task in tasksSnapshot.docs) {
-            final taskData = task.data();
-            totalTimeMinutes += (taskData['timeSpent'] ?? 0) as int;
-          }
+              .set({
+            'totalPoints': memberTotalPoints,
+            'completedTasks': memberCompletedTasks,
+            'totalTasks': memberTotalTasks,
+            'totalTimeMinutes': memberTimeMinutes,
+          }, SetOptions(merge: true));
         }
       }
 
+      // Calculate and update household averages
       double completionRate =
           memberCount > 0 ? totalCompletionRate / memberCount : 0.0;
-      double avgPoints = memberCount > 0 ? totalPoints / memberCount : 0.0;
-      int avgTimeMinutes =
-          memberCount > 0 ? totalTimeMinutes ~/ memberCount : 0;
 
-      // Update the household document with the new stats
       await FirebaseFirestore.instance
           .collection('households')
           .doc(householdID)
           .set({
         'completionRate': completionRate,
-        'avgPoints': avgPoints,
-        'avgTimeMinutes': avgTimeMinutes,
         'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-
-      print(
-          'Updated household stats: Rate: $completionRate%, Avg Points: $avgPoints, Avg Time: $avgTimeMinutes min');
     } catch (e) {
       print('Error updating household stats: $e');
     }

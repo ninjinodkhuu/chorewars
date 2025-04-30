@@ -26,6 +26,8 @@ class Task {
   final String? assignedTo;
   final DateTime? acceptedAt;
   final DateTime? startedAt;
+  final DateTime? completedAt;
+  final bool done;
   final String id;
 
   Task({
@@ -37,6 +39,8 @@ class Task {
     this.assignedTo,
     this.acceptedAt,
     this.startedAt,
+    this.completedAt,
+    this.done = false,
     this.id = '',
   });
 }

@@ -127,6 +127,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       // CustomScrollView allows for a scrollable view with slivers.
       body: CustomScrollView(
+        key: const PageStorageKey<String>('profileScroll'),
         slivers: [
           // SliverAppBar provides a flexible app bar.
           SliverAppBar(
@@ -134,45 +135,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
                 color: Colors.blueAccent, // Background color of the app bar.
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Stack(
-                    children: [
-                      // CircleAvatar to display the user's profile picture.
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundImage:
-                            const AssetImage('assets/default_profile.png'),
-                        onBackgroundImageError: (_, __) {
-                          debugPrint('Failed to load image');
-                        },
-                        child: const Icon(
-                          Icons.person,
-                          size: 50,
-                          color: Colors.white,
-                        ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // CircleAvatar to display the user's profile picture.
+                    CircleAvatar(
+                      radius: 50,
+                      backgroundImage:
+                          const AssetImage('assets/default_profile.png'),
+                      onBackgroundImageError: (_, __) {
+                        debugPrint('Failed to load image');
+                      },
+                      child: const Icon(
+                        Icons.person,
+                        size: 50,
+                        color: Colors.white,
                       ),
-                      // Positioned widget to place the camera icon at the bottom right of the profile picture.
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: GestureDetector(
-                          onTap: () {
-                            // Handle changing the profile picture.
-                          },
-                          child: const CircleAvatar(
-                            radius: 15,
-                            backgroundColor: Colors.white,
-                            child: Icon(
-                              Icons.camera_alt,
-                              size: 15,
-                              color: Colors.blueAccent,
-                            ),
+                    ),
+                    // Positioned widget to place the camera icon at the bottom right of the profile picture.
+                    Positioned(
+                      bottom: 40,
+                      right: 125,
+                      child: GestureDetector(
+                        onTap: () {
+                          // Handle changing the profile picture.
+                        },
+                        child: const CircleAvatar(
+                          radius: 15,
+                          backgroundColor: Colors.white,
+                          child: Icon(
+                            Icons.camera_alt,
+                            size: 15,
+                            color: Colors.blueAccent,
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -182,7 +181,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 20),
                   // TextFormField for the username.
@@ -221,7 +220,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       // Handle theme change.
                     },
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
                   // ElevatedButton to save profile changes.
                   ElevatedButton(
                     onPressed: () {
@@ -229,64 +228,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     },
                     child: const Text('Save Changes'),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
                   // Text widget to display the title "Household Members".
                   const Text(
                     'Household Members',
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 1),
-                  // ListView.builder to display the list of household members.
-                  ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: householdMembers.length,
-                    itemBuilder: (context, index) {
-                      String memberId = householdMembers[index];
-                      String email =
-                          householdMemberEmails[memberId] ?? 'Loading...';
-                      return ListTile(
-                        title: Text(email),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 2),
-                  // ElevatedButton to invite new members to the household.
-                  ElevatedButton(
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) {
-                          return AlertDialog(
-                            title: const Text('Invite Members to Household'),
-                            content: TextField(
-                              controller: _inviteEmailController,
-                              decoration: const InputDecoration(
-                                labelText: 'Email Address',
-                              ),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                },
-                                child: const Text('Cancel'),
-                              ),
-                              TextButton(
-                                onPressed: _inviteToHousehold,
-                                child: const Text('Invite'),
-                              ),
-                            ],
-                          );
-                        },
-                      );
-                    },
-                    child: const Text('Invite Members to Household'),
-                  ),
+                  const SizedBox(height: 16),
                 ],
               ),
+            ),
+          ),
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                if (index >= householdMembers.length) return null;
+                String memberId = householdMembers[index];
+                String email = householdMemberEmails[memberId] ?? 'Loading...';
+                return ListTile(
+                  title: Text(email),
+                  leading: CircleAvatar(
+                    child: Text(email[0].toUpperCase()),
+                  ),
+                );
+              },
+              childCount: householdMembers.length,
             ),
           ),
         ],
@@ -294,9 +263,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // FloatingActionButton to handle edit profile action.
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // Handle edit profile action.
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Invite Members to Household'),
+              content: TextField(
+                controller: _inviteEmailController,
+                decoration: const InputDecoration(labelText: 'Email Address'),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: _inviteToHousehold,
+                  child: const Text('Invite'),
+                ),
+              ],
+            ),
+          );
         },
-        child: const Icon(Icons.edit),
+        child: const Icon(Icons.person_add),
       ),
     );
   }

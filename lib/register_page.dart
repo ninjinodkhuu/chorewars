@@ -32,32 +32,56 @@ class _RegisterPageState extends State<RegisterPage> {
 
     // try creating the user
     try {
-      if (passwordController == ConfirmpasswordController) {
+      // Check if passwords match by comparing their text values
+      if (passwordController.text == ConfirmpasswordController.text) {
         await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: emailController.text,
           password: passwordController.text,
         );
+        // pop the loading circle
+        Navigator.pop(context);
       } else {
-        //show error mesage,passwords dont match
+        // pop the loading circle
+        Navigator.pop(context);
+        //show error message, passwords don't match
         NonMatchingPasswordMessage();
       }
-      // pop the loading circle
-      Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
       // pop the loading circle
       Navigator.pop(context);
-      // WRONG EMAIL
-      if (e.code == 'user-not-found') {
-        // show error to user
-        wrongEmailMessage();
+      // Show appropriate error messages
+      if (e.code == 'email-already-in-use') {
+        showErrorMessage('Email already in use');
+      } else if (e.code == 'invalid-email') {
+        showErrorMessage('Invalid email format');
+      } else if (e.code == 'weak-password') {
+        showErrorMessage('Password is too weak');
+      } else {
+        showErrorMessage('Registration failed: ${e.message}');
       }
-
-      // WRONG PASSWORD
-      else if (e.code == 'wrong-password') {
-        // show error to user
-        wrongPasswordMessage();
-      }
+    } catch (e) {
+      // pop the loading circle for any other errors
+      Navigator.pop(context);
+      showErrorMessage('An error occurred during registration');
     }
+  }
+
+  // general error message popup
+  void showErrorMessage(String message) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.deepPurple,
+          title: Center(
+            child: Text(
+              message,
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   // wrong email message popup
@@ -211,16 +235,28 @@ class _RegisterPageState extends State<RegisterPage> {
                 const SizedBox(height: 50),
 
                 // google + apple sign in buttons
-                const Row(
+                Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     // google button
-                    SquareTile(imagePath: 'lib/images/google.png'),
+                    Flexible(
+                      child: Container(
+                        constraints: const BoxConstraints(maxWidth: 60),
+                        child: const SquareTile(
+                            imagePath: 'lib/images/google.png'),
+                      ),
+                    ),
 
-                    SizedBox(width: 25),
+                    const SizedBox(width: 25),
 
                     // apple button
-                    SquareTile(imagePath: 'lib/images/apple.png')
+                    Flexible(
+                      child: Container(
+                        constraints: const BoxConstraints(maxWidth: 60),
+                        child:
+                            const SquareTile(imagePath: 'lib/images/apple.png'),
+                      ),
+                    ),
                   ],
                 ),
 

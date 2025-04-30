@@ -3,22 +3,39 @@ import 'package:chore/SquareCard.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
   final user = FirebaseAuth.instance.currentUser!;
   final List<Task> tasks = [
-    Task(category: "Work", name: "Task 1", date: DateTime.now()),
     Task(
-        category: "Home",
-        name: "Task 2",
-        date: DateTime.now().add(const Duration(days: 1))),
+      category: "Work",
+      name: "Task 1",
+      date: DateTime.now(),
+      difficulty: TaskDifficulty.easy,
+      timeEstimateMinutes: 30,
+    ),
     Task(
-        category: "Personal",
-        name: "Task 3",
-        date: DateTime.now().add(const Duration(days: 2))),
+      category: "Home",
+      name: "Task 2",
+      date: DateTime.now().add(const Duration(days: 1)),
+      difficulty: TaskDifficulty.medium,
+      timeEstimateMinutes: 45,
+    ),
+    Task(
+      category: "Personal",
+      name: "Task 3",
+      date: DateTime.now().add(const Duration(days: 2)),
+      difficulty: TaskDifficulty.hard,
+      timeEstimateMinutes: 60,
+    ),
   ];
 
-  HomeScreen({super.key});
-  // sign user out method
   void signUserOut() {
     FirebaseAuth.instance.signOut();
   }
@@ -38,7 +55,7 @@ class HomeScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Hello ' + user.email! + "!",
+                    'Hello ${user.email}!',
                     style: const TextStyle(
                       color: Colors.black,
                       fontSize: 23,
@@ -170,11 +187,13 @@ class HomeScreen extends StatelessWidget {
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
-                children: tasks
-                    .map((task) => Container(
-                          child: SquareCard(task: task),
-                        ))
-                    .toList(),
+                children: tasks.asMap().entries.map((entry) {
+                  final task = entry.value;
+                  return Container(
+                    key: ObjectKey(task),
+                    child: SquareCard(task: task),
+                  );
+                }).toList(),
               ),
             ),
             const SizedBox(height: 50),

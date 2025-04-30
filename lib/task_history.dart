@@ -14,8 +14,11 @@ class TaskHistory extends StatelessWidget {
 
   Future<Map<String, dynamic>> fetchMemberStats() async {
     try {
+      // First, update the household stats to ensure they're current
+      await updateHouseholdStats(householdID);
+
       final tasksSnapshot = await FirebaseFirestore.instance
-          .collection('household')
+          .collection('households') // Changed from 'household' to 'households'
           .doc(householdID)
           .collection('members')
           .doc(memberID)
@@ -81,7 +84,7 @@ class TaskHistory extends StatelessWidget {
   Future<void> updateHouseholdStats(String householdID) async {
     try {
       final membersSnapshot = await FirebaseFirestore.instance
-          .collection('household')
+          .collection('households') // Changed from 'household' to 'households'
           .doc(householdID)
           .collection('members')
           .get();
@@ -93,7 +96,8 @@ class TaskHistory extends StatelessWidget {
 
       for (var member in membersSnapshot.docs) {
         final tasksSnapshot = await FirebaseFirestore.instance
-            .collection('household')
+            .collection(
+                'households') // Changed from 'household' to 'households'
             .doc(householdID)
             .collection('members')
             .doc(member.id)
@@ -132,7 +136,7 @@ class TaskHistory extends StatelessWidget {
 
       // Update the household document with the new stats
       await FirebaseFirestore.instance
-          .collection('household')
+          .collection('households') // Changed from 'household' to 'households'
           .doc(householdID)
           .set({
         'completionRate': completionRate,
@@ -172,7 +176,8 @@ class TaskHistory extends StatelessWidget {
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
-                      .collection('household')
+                      .collection(
+                          'households') // Changed from 'household' to 'households'
                       .doc(householdID)
                       .collection('members')
                       .doc(memberID)

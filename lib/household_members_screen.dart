@@ -148,6 +148,41 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
 
         User? user = FirebaseAuth.instance.currentUser;
         if (user != null) {
+          String householdId = await _getHouseholdId();
+
+          // Add the invited user as a household member with proper initialization
+          await FirebaseFirestore.instance
+              .collection('households')
+              .doc(householdId)
+              .collection('members')
+              .doc(invitedUserId)
+              .set({
+            'name': email, // Use email as name for consistency
+            'email': email,
+            'joinedAt': FieldValue.serverTimestamp(),
+            'isLeader': false,
+            'totalPoints': 0,
+            'completedTasks': 0,
+            'totalTasks': 0
+          });
+
+          // Update user's profile with household ID
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(invitedUserId)
+              .set({
+            'household_id': householdId,
+            'email': email,
+            'lastUpdated': FieldValue.serverTimestamp()
+          }, SetOptions(merge: true));
+
+          // Add to household_members collection
+          await FirebaseFirestore.instance.collection('household_members').add({
+            'memberId': invitedUserId,
+            'householdId': householdId,
+            'joinedAt': FieldValue.serverTimestamp()
+          });
+
           await FirebaseFirestore.instance
               .collection('users')
               .doc(user.uid)
@@ -247,7 +282,7 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
         // Show success message
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+            const SnackBar(
               content: Text('New household leader assigned'),
               backgroundColor: Colors.green,
             ),
@@ -258,7 +293,7 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
       print('Error assigning leader: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Error assigning leader'),
             backgroundColor: Colors.red,
           ),

@@ -1,10 +1,12 @@
 import 'package:expenses_tracker/local_notifications.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'Data/Task.dart';
+import 'services/points_service.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -14,6 +16,7 @@ class CalendarScreen extends StatefulWidget {
 }
 
 class _CalendarScreenState extends State<CalendarScreen> {
+  String? householdID;
   DateTime _selectedDay = DateTime.now();
   DateTime _focusedDay = DateTime.now();
   List<Task> tasks = [];
@@ -21,12 +24,36 @@ class _CalendarScreenState extends State<CalendarScreen> {
   @override
   void initState() {
     super.initState();
+    _loadHouseholdID();
+  }
+
+  // Loads the household ID from Firestore
+  Future<void> _loadHouseholdID() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+    setState(() {
+      householdID = userDoc['householdID'] as String;
+    });
     _loadTasks();
   }
 
   // Loads tasks for the current user from Firestore
   Future<void> _loadTasks() async {
-    User? user = FirebaseAuth.instance.currentUser;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || householdID == null) return;
+
+    final base = FirebaseFirestore.instance
+        .collection('household')
+        .doc(householdID!)
+        .collection('members')
+        .doc(user.uid)
+        .collection('tasks');
+        
+    /*User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       String uid = user.uid;
       QuerySnapshot snapshot = await FirebaseFirestore.instance
@@ -35,87 +62,101 @@ class _CalendarScreenState extends State<CalendarScreen> {
           .collection('tasks')
           .orderBy('date', descending: false)
           .get();
+    */
 
-      setState(() {
+    final snapshot = await base
+        .orderBy('date', descending: false)
+        .get();
+
+    setState(() {
         tasks = snapshot.docs.map((doc) => Task.fromFirestore(doc)).toList();
-      });
-    }
+    });
   }
 
   // Adds a new task to Firestore and schedules a notification if enabled
   Future<void> _addTask(Task task) async {
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      String uid = user.uid;
-      // Adds task and retrieves generated document ID
-      DocumentReference taskRef = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('tasks')
-          .add(task.toFirestore());
-      
-      // Load the user's notification settings
-      DocumentSnapshot userSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || householdID == null) return;
 
-      final userData = userSnapshot.data() as Map<String, dynamic>?;
-      final notificationSettings = userData?['notificationSettings'] as Map<String, dynamic>?;
-      
-      bool taskReminderEnabled = notificationSettings?['taskReminders'] ?? true;
-      int notificationLeadTime = notificationSettings?['notificationLeadTime'] ?? 1;
-      
-      // Schedule a task reminder if notifications are enabled
-      if (taskReminderEnabled) {
-        LocalNotificationService.scheduleTaskReminder(
-          taskRef.id, 
-          task.name, 
-          task.date, 
-          notificationLeadTime,
-        );
-      }
-      _loadTasks();
+    final uid = user.uid;
+    final hid = householdID!;
+
+    final base = FirebaseFirestore.instance
+        .collection('household')
+        .doc(hid)
+        .collection('members')
+        .doc(uid);
+
+    final DocumentReference taskRef = await base
+        .collection('tasks')
+        .add(task.toFirestore());
+
+    // Load the user's notification settings
+    final userSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+
+    final userData = userSnapshot.data() as Map<String, dynamic>?;
+    final notificationSettings = userData?['notificationSettings'] as Map<String, dynamic>?;
+    
+    bool taskReminderEnabled = notificationSettings?['taskReminders'] ?? true;
+    int notificationLeadTime = notificationSettings?['notificationLeadTime'] ?? 1;
+    
+    // Schedule a task reminder if notifications are enabled
+    if (taskReminderEnabled) {
+      LocalNotificationService.scheduleTaskReminder(
+        taskRef.id, 
+        task.name, 
+        task.date, 
+        notificationLeadTime,
+      );
     }
+    _loadTasks();
   }
 
   // Updates an existing task and schedules/cancels notification based on updated settings
   Future<void> _updateTask(Task task) async {
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      String uid = user.uid;
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('tasks')
-          .doc(task.id)
-          .update(task.toFirestore());
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || householdID == null) return;
 
-      DocumentSnapshot snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
+    final uid = user.uid;
+    final hid = householdID!;
 
-      final data = snapshot.data() as Map<String, dynamic>?;
-      final notificationSettings = data?['notificationSettings'] as Map<String, dynamic>?;
-      bool taskReminders = notificationSettings?['taskReminders'] ?? true;
-      int leadTime = notificationSettings?['notificationLeadTime'] ?? 1;
+    final base = FirebaseFirestore.instance
+        .collection('household')
+        .doc(hid)
+        .collection('members')
+        .doc(uid);
 
-      // If reminders are enabled and task is not marked done
-      if (taskReminders && !task.done) {
-        // Schedule a notification
-        LocalNotificationService.scheduleTaskReminder(
-          task.id, 
-          task.name, 
-          task.date, 
-          leadTime
-        );
-      } else {
-        LocalNotificationService.cancelTaskReminder(task.id);
-      }
+    await base
+        .collection('tasks')
+        .doc(task.id)
+        .update(task.toFirestore());
 
-      _loadTasks();
+    final snapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+
+    final data = snapshot.data() as Map<String, dynamic>?;
+    final notificationSettings = data?['notificationSettings'] as Map<String, dynamic>?;
+    bool taskReminders = notificationSettings?['taskReminders'] ?? true;
+    int leadTime = notificationSettings?['notificationLeadTime'] ?? 1;
+
+    // If reminders are enabled and task is not marked done
+    if (taskReminders && !task.done) {
+      // Schedule a notification
+      LocalNotificationService.scheduleTaskReminder(
+        task.id, 
+        task.name, 
+        task.date, 
+        leadTime
+      );
+    } else {
+      LocalNotificationService.cancelTaskReminder(task.id);
     }
+    _loadTasks();
   }
 
   // Filters tasks for the selected day
@@ -187,6 +228,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     int points = int.parse(pointsController.text);
                     Task newTask = Task(
                       id: '', // Firestore will generate the ID
+                      householdID: householdID!,
                       category: categoryController.text,
                       name: nameController.text,
                       date: selectedDate,
@@ -254,6 +296,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   task.points = newPoints;
                 });
                 await _updateTask(task);
+                await PointsService.recalcHouseholdPoints(task.householdID);
                 Navigator.of(context).pop();
                 Navigator.of(context).pop();
               },

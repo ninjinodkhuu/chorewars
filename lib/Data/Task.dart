@@ -7,12 +7,14 @@ class Task {
   DateTime date;
   bool done;
   int points;
+  final String householdID;
 
   Task(
       {required this.id,
       required this.category,
       required this.name,
       required this.date,
+      required this.householdID,
       this.done = false,
       this.points = 1});
 
@@ -25,6 +27,7 @@ class Task {
       date: (data['date'] as Timestamp).toDate(),
       done: data['done'] ?? false,
       points: data['points'] ?? 1,
+      householdID: data['householdID'] as String,
     );
   }
 
@@ -35,6 +38,7 @@ class Task {
       'date': date,
       'done': done,
       'points': points,
+      'householdID': householdID,
     };
   }
 }

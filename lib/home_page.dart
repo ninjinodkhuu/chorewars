@@ -1,4 +1,5 @@
 import 'package:chore/CalenderScreen.dart';
+import 'package:chore/Chat.dart';
 import 'package:chore/Expense_tracking.dart';
 import 'package:chore/Gamification.dart';
 import 'package:chore/home_screen.dart';
@@ -6,8 +7,7 @@ import 'package:chore/shopping_list.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:chore/household_members_screen.dart';
-
-import 'ProfileScreen.dart';
+import 'package:chore/ProfileScreen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -32,7 +32,6 @@ class _HomePageState extends State<HomePage> {
     _pageController.jumpToPage(index);
   }
 
-  // Navigate to household members screen
   void viewHouseholdMembers(BuildContext context) {
     Navigator.push(
       context,
@@ -45,20 +44,33 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.blue[100],
-        title: const Text('Home Page'),
+        title: Text(
+          'Home Page',
+          style: TextStyle(
+            color: Colors.blue[900],
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.group),
             onPressed: () => viewHouseholdMembers(context),
           ),
           IconButton(
+            icon: const Icon(Icons.chat),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const Chat()),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.person),
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                    builder: (context) =>
-                        const ProfileScreen()), // Navigate to ProfileScreen
+                MaterialPageRoute(builder: (context) => const ProfileScreen()),
               );
             },
           ),
@@ -77,17 +89,17 @@ class _HomePageState extends State<HomePage> {
               icon: Icon(Icons.attach_money), label: 'Expenses'),
           BottomNavigationBarItem(
               icon: Icon(Icons.leaderboard), label: 'Points'),
-          BottomNavigationBarItem(icon: Icon(Icons.apple), label: 'Shopping'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.shopping_cart), label: 'Shopping'),
         ],
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
-        backgroundColor: Colors.white,
-        selectedItemColor: Colors.blue,
+        backgroundColor: Colors.blue[50],
+        selectedItemColor: Colors.blue[900],
         unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed,
         showSelectedLabels: true,
         showUnselectedLabels: true,
-        type: BottomNavigationBarType.fixed,
-        elevation: 8,
       ),
       body: PageView(
         controller: _pageController,
@@ -96,12 +108,12 @@ class _HomePageState extends State<HomePage> {
             _selectedIndex = index;
           });
         },
-        children: [
+        children: const [
           HomeScreen(),
-          const CalendarScreen(),
-          const ExpenseTracking(),
-          const Gamification(),
-          const ShoppingList(),
+          CalendarScreen(),
+          ExpenseTracking(),
+          Gamification(),
+          ShoppingList(),
         ],
       ),
     );

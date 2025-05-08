@@ -20,11 +20,33 @@ class _CalendarScreenState extends State<CalendarScreen> {
   DateTime _selectedDay = DateTime.now();
   DateTime _focusedDay = DateTime.now();
   List<Task> tasks = [];
+  bool _taskReminderEnabled = false;
+  int _taskReminderLeadDays = 1;
 
   @override
   void initState() {
     super.initState();
     _loadHouseholdID();
+    _loadNotificationPrefs();
+  }
+
+  // Loads notification preferences from Firestore
+  Future<void> _loadNotificationPrefs() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    // Fetch user document from Firestore
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('notificationSettings')
+        .doc('global')
+        .get();
+    final data = userDoc.data() ?? {};
+    setState(() {
+      _taskReminderEnabled = data['taskRemindersEnabled'] as bool? ?? false;
+      _taskReminderLeadDays = data['taskReminderLeadDays'] as int? ?? 1;
+    });
   }
 
   // Loads the household ID from Firestore
@@ -76,42 +98,62 @@ class _CalendarScreenState extends State<CalendarScreen> {
   // Adds a new task to Firestore and schedules a notification if enabled
   Future<void> _addTask(Task task) async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null || householdID == null) return;
+    if (user == null || householdID == null) {
+      print(' _addTask aborted: user or householdID is null');
+      return;
+    }
 
     final uid = user.uid;
     final hid = householdID!;
+    print('Adding task $task for user: $uid, household: $hid');
 
+    // Build base path to tasks collection
     final base = FirebaseFirestore.instance
         .collection('household')
         .doc(hid)
         .collection('members')
         .doc(uid);
 
+    // Write task to Firestore
     final DocumentReference taskRef = await base
         .collection('tasks')
         .add(task.toFirestore());
+    print('[CalendarScreen] added task with ID: ${taskRef.id}');
+    
+    // Fire task created notification
+    await LocalNotificationService.sendTaskNotification(
+      title: 'New Task Created',
+      body: 'A new task "${task.name}" has been created.',
+      payload: taskRef.id,
+    );
 
+    /*
     // Load the user's notification settings
     final userSnapshot = await FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
         .get();
 
-    final userData = userSnapshot.data() as Map<String, dynamic>?;
+    final userData = userSnapshot.data()?['notificationSettings'] as Map<String, dynamic>?;
     final notificationSettings = userData?['notificationSettings'] as Map<String, dynamic>?;
-    
-    bool taskReminderEnabled = notificationSettings?['taskReminders'] ?? true;
-    int notificationLeadTime = notificationSettings?['notificationLeadTime'] ?? 1;
+    */
+
+    final taskReminderEnabled = _taskReminderEnabled;
+    final notificationLeadTime = _taskReminderLeadDays;
     
     // Schedule a task reminder if notifications are enabled
     if (taskReminderEnabled) {
-      LocalNotificationService.scheduleTaskReminder(
+      await LocalNotificationService.scheduleTaskReminder(
         taskRef.id, 
         task.name, 
         task.date, 
         notificationLeadTime,
       );
+    } else {
+      LocalNotificationService.cancelTaskReminder(taskRef.id);
+      print('Cancelled reminder for task: ${task.name}');
     }
+    print('Task added: ${task.toFirestore()}');
     _loadTasks();
   }
 
@@ -133,28 +175,42 @@ class _CalendarScreenState extends State<CalendarScreen> {
         .collection('tasks')
         .doc(task.id)
         .update(task.toFirestore());
+    print('[CalendarScreen] updated task with ID: ${task.id}');
 
+    // Fire task updated notification
+    await LocalNotificationService.sendTaskNotification(
+      title: 'Task Updated',
+      body: 'The task "${task.name}" has been updated.',
+      payload: task.id,
+    );
+
+    /*
+    // Load global preferences
     final snapshot = await FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
         .get();
 
-    final data = snapshot.data() as Map<String, dynamic>?;
+    final data = snapshot.data()?['notificationSettings'] as Map<String, dynamic>?;
     final notificationSettings = data?['notificationSettings'] as Map<String, dynamic>?;
-    bool taskReminders = notificationSettings?['taskReminders'] ?? true;
-    int leadTime = notificationSettings?['notificationLeadTime'] ?? 1;
+    */
+    
+    final taskReminders = _taskReminderEnabled;
+    final leadTime = _taskReminderLeadDays;
 
     // If reminders are enabled and task is not marked done
     if (taskReminders && !task.done) {
       // Schedule a notification
-      LocalNotificationService.scheduleTaskReminder(
+      await LocalNotificationService.scheduleTaskReminder(
         task.id, 
         task.name, 
         task.date, 
         leadTime
       );
+      print('Reschedule reminder');
     } else {
       LocalNotificationService.cancelTaskReminder(task.id);
+      print('Cancelled reminder for task: ${task.name}');
     }
     _loadTasks();
   }

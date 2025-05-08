@@ -7,6 +7,30 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:firebase_messaging/firebase_messaging.dart';
 
+// Handles background messages for Firebase Cloud Messaging
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Initialize Firebase if not already initialized
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  tz.initializeTimeZones();
+  LocalNotificationService.initialize();
+
+  // If there's a notification, show it
+  final notif = message.notification;
+  final title = notif?.title ?? "Background Notification";
+  final body = notif?.body ?? "You have a new message";
+
+  // Fire local notification
+  await LocalNotificationService.sendTaskNotification(
+    title: title,
+    body: body,
+    payload: message.data['taskId'] ?? '',
+  );
+
+  // Handle the message here
+  print("Handling a background message: ${message.messageId}");  
+}
+
 // This function will be called when a background message is received
 Future<void> _initFCM() async {
   // Ask for user permission to receive notifications
@@ -23,6 +47,21 @@ Future<void> _initFCM() async {
   // Subscribe THIS device to the “householdID” topic
   await FirebaseMessaging.instance.subscribeToTopic(householdID);}
 
+// Foreground handling
+void _initFCMListeners() {
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    final notification = message.notification;
+    final title = notification?.title ?? 'New Notification';
+    final body = notification?.body ?? 'You have a new message';
+
+    LocalNotificationService.sendTaskNotification(
+      title: title,
+      body: body,
+      payload: message.data['taskId'] ?? '',
+    );
+  });
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   FirebaseOptions options = FirebaseOptions(
@@ -37,9 +76,30 @@ void main() async {
   // Enable Firestore offline persistence
   FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true);
   
+  // Ask user for notification permissions (iOS)
+  NotificationSettings settings = await FirebaseMessaging.instance.requestPermission(
+    alert: true,
+    badge: true,
+    sound: true,
+    provisional: false,
+  );
+
+  print('User granted permission: ${settings.authorizationStatus}');
+
+  // Ensure iOS will show notifications when app is foregrounded
+  await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+    alert: true,
+    badge: true,
+    sound: true,
+  );
+
+  // Set up Firebase Messaging background handler
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
   tz.initializeTimeZones();
   LocalNotificationService.initialize();
   await _initFCM();
+  _initFCMListeners();
   
   runApp(MyApp());
 }
@@ -50,6 +110,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       home: AuthPage(),
     );

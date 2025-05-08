@@ -20,6 +20,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   DateTime _selectedDay = DateTime.now();
   DateTime _focusedDay = DateTime.now();
   List<Task> tasks = [];
+  //--------- NOTIFICATION SETTINGS START HERE -----------
   bool _taskReminderEnabled = false;
   int _taskReminderLeadDays = 1;
 
@@ -49,6 +50,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
     });
   }
 
+  //--------- NOTIFICATION SETTINGS END HERE -----------
+
   // Loads the household ID from Firestore
   Future<void> _loadHouseholdID() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -74,17 +77,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
         .collection('members')
         .doc(user.uid)
         .collection('tasks');
-        
-    /*User? user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      String uid = user.uid;
-      QuerySnapshot snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('tasks')
-          .orderBy('date', descending: false)
-          .get();
-    */
 
     final snapshot = await base
         .orderBy('date', descending: false)
@@ -120,23 +112,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
         .add(task.toFirestore());
     print('[CalendarScreen] added task with ID: ${taskRef.id}');
     
+  //--------- NOTIFICATION SETTINGS START HERE -----------
+
     // Fire task created notification
     await LocalNotificationService.sendTaskNotification(
       title: 'New Task Created',
       body: 'A new task "${task.name}" has been created.',
       payload: taskRef.id,
     );
-
-    /*
-    // Load the user's notification settings
-    final userSnapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
-
-    final userData = userSnapshot.data()?['notificationSettings'] as Map<String, dynamic>?;
-    final notificationSettings = userData?['notificationSettings'] as Map<String, dynamic>?;
-    */
 
     final taskReminderEnabled = _taskReminderEnabled;
     final notificationLeadTime = _taskReminderLeadDays;
@@ -183,17 +166,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
       body: 'The task "${task.name}" has been updated.',
       payload: task.id,
     );
-
-    /*
-    // Load global preferences
-    final snapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
-
-    final data = snapshot.data()?['notificationSettings'] as Map<String, dynamic>?;
-    final notificationSettings = data?['notificationSettings'] as Map<String, dynamic>?;
-    */
     
     final taskReminders = _taskReminderEnabled;
     final leadTime = _taskReminderLeadDays;
@@ -214,6 +186,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
     _loadTasks();
   }
+
+    //--------- NOTIFICATION SETTINGS END HERE -----------
 
   // Filters tasks for the selected day
   List<Task> _getTasksForDay(DateTime day) {
@@ -302,6 +276,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
       );
     }
   }
+
+  //--------- POINTS CUSTOMIZATION STARTS HERE -----------
 
   // Shows error dialog for invalid input
   void _showErrorDialog(String title, String message) {
@@ -432,6 +408,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
       },
     );
   }
+
+  //--------- POINTS CUSTOMIZATION START HERE -----------
 
   @override
   Widget build(BuildContext context) {

@@ -7,6 +7,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:firebase_messaging/firebase_messaging.dart';
 
+  //--------- NOTIFICATION SETTINGS START HERE -----------
+
 // Handles background messages for Firebase Cloud Messaging
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // Initialize Firebase if not already initialized
@@ -62,6 +64,8 @@ void _initFCMListeners() {
   });
 }
 
+  //--------- NOTIFICATION SETTINGS END HERE -----------
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   FirebaseOptions options = FirebaseOptions(
@@ -103,6 +107,8 @@ void main() async {
   
   runApp(MyApp());
 }
+
+  //--------- NOTIFICATION SETTINGS END HERE -----------
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});

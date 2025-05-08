@@ -9,6 +9,8 @@ class ShoppingList extends StatefulWidget {
   _ShoppingListState createState() => _ShoppingListState();
 }
 
+  //--------- NOTIFICATION SETTINGS START HERE -----------
+
 class _ShoppingListState extends State<ShoppingList> {
   String? householdID;
   String? userID;
@@ -118,6 +120,8 @@ class _ShoppingListState extends State<ShoppingList> {
       'price': price,
     });
   }
+
+    //--------- NOTIFICATION SETTINGS END HERE -----------
 
   void showItemDetails(BuildContext context, String uid, String itemId,
       String itemName, int quantity, String unit, double price) {
@@ -229,6 +233,9 @@ class _ShoppingListState extends State<ShoppingList> {
               },
               child: Text('Add Item'),
             ),
+
+              //--------- NOTIFICATION SETTINGS START HERE -----------
+
             // Shopping Reminder Switch
             if (_prefsloaded)
             Padding(
@@ -283,7 +290,7 @@ class _ShoppingListState extends State<ShoppingList> {
                 },
               ),
             ),
-
+  //--------- NOTIFICATION SETTINGS END HERE -----------
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance

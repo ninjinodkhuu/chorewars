@@ -1,15 +1,78 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:expenses_tracker/local_notifications.dart';
 
-class ShoppingList extends StatelessWidget {
+class ShoppingList extends StatefulWidget {
   const ShoppingList({super.key});
+  @override
+  _ShoppingListState createState() => _ShoppingListState();
+}
 
+  //--------- NOTIFICATION SETTINGS START HERE -----------
+
+class _ShoppingListState extends State<ShoppingList> {
+  String? householdID;
+  String? userID;
+  bool _shoppingReminderEnabled = false;
+  TimeOfDay _shoppingReminderTime = const TimeOfDay(hour: 9, minute: 0);
+  bool _prefsloaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHouseholdAndPrefs();
+  }
+
+  Future<void> _loadHouseholdAndPrefs() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    
+    // Grab userID
+    userID = user.uid;
+
+    // Grab householdID from user document
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userID)
+        .get();
+    householdID = userDoc.data()?['householdID'] as String?;
+
+    // Load user preferences from Firestore
+    final prefsDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userID)
+        .collection('notificationSettings')
+        .doc('shopping')
+        .get();
+    final data = prefsDoc.data() ?? {};
+    _shoppingReminderEnabled = data['shoppingReminderEnabled'] as bool? ?? false;
+    final int hour = data['shoppingReminderHour'] as int? ?? 9;
+    final int minute = data['shoppingReminderMinute'] as int? ?? 0;
+    _shoppingReminderTime = TimeOfDay(hour: hour, minute: minute);
+
+    setState(() => _prefsloaded = true);
+
+    // Schedule or cancel the shopping reminder based on user preference
+    if (_shoppingReminderEnabled && householdID != null) {
+      await LocalNotificationService.scheduleShoppingReminder(
+        householdID: householdID!,
+        userID: userID!,
+        hour: _shoppingReminderTime.hour,
+        minute: _shoppingReminderTime.minute,
+      );
+    } else {
+      await LocalNotificationService.cancelShoppingReminder();
+    }
+  }
+  
   Future<void> addItem(String uid, String item) async {
     await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('shoppinglistinfohere')
+        .collection('household')
+        .doc(householdID!)
+        .collection('members')
+        .doc(userID!)
+        .collection('shopping_list')
         .add({
       'item': item,
       'done': false,
@@ -17,22 +80,27 @@ class ShoppingList extends StatelessWidget {
       'unit': '',
       'price': 0.0
     });
+    await LocalNotificationService.sendShoppingItemAddedNotification(item);
   }
 
   Future<void> toggleDone(String uid, String itemId, bool currentStatus) async {
     await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('shoppinglistinfohere')
+        .collection('household')
+        .doc(householdID!)
+        .collection('members')
+        .doc(userID!)
+        .collection('shopping_list')
         .doc(itemId)
         .update({'done': !currentStatus});
   }
 
   Future<void> deleteItem(String uid, String itemId) async {
     await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('shoppinglistinfohere')
+        .collection('household')
+        .doc(householdID!)
+        .collection('members')
+        .doc(userID!)
+        .collection('shopping_list')
         .doc(itemId)
         .delete();
   }
@@ -40,9 +108,11 @@ class ShoppingList extends StatelessWidget {
   Future<void> updateItemDetails(String uid, String itemId, int quantity,
       String unit, double price) async {
     await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('shoppinglistinfohere')
+        .collection('household')
+        .doc(householdID!)
+        .collection('members')
+        .doc(userID!)
+        .collection('shopping_list')
         .doc(itemId)
         .update({
       'quantity': quantity,
@@ -50,6 +120,8 @@ class ShoppingList extends StatelessWidget {
       'price': price,
     });
   }
+
+    //--------- NOTIFICATION SETTINGS END HERE -----------
 
   void showItemDetails(BuildContext context, String uid, String itemId,
       String itemName, int quantity, String unit, double price) {
@@ -129,6 +201,9 @@ class ShoppingList extends StatelessWidget {
     final TextEditingController itemController = TextEditingController();
     final User? user = FirebaseAuth.instance.currentUser;
     final String uid = user?.uid ?? '';
+    if (!_prefsloaded) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -158,12 +233,73 @@ class ShoppingList extends StatelessWidget {
               },
               child: Text('Add Item'),
             ),
+
+              //--------- NOTIFICATION SETTINGS START HERE -----------
+
+            // Shopping Reminder Switch
+            if (_prefsloaded)
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                  vertical: 8.0, horizontal: 16.0),
+              child: SwitchListTile(
+                title: const Text('Daily Shopping Reminder'),
+                subtitle: Text(
+                  _shoppingReminderEnabled
+                      ? 'Every day at ${_shoppingReminderTime.format(context)}'
+                      : 'No reminder set',
+                ),
+                value: _shoppingReminderEnabled,
+                onChanged: (enabled) async {
+                  // Update state
+                  setState(() => _shoppingReminderEnabled = enabled);
+
+                  // When enabling, ask for time
+                  if (enabled) {
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: _shoppingReminderTime,
+                    );
+                    if (picked != null) {
+                      setState(() => _shoppingReminderTime = picked);
+                    }
+                  }
+
+                  // Schedule or cancel the reminder
+                  if (_shoppingReminderEnabled) {
+                    await LocalNotificationService.scheduleShoppingReminder(
+                      householdID: householdID!,
+                      userID:       userID!,
+                      hour:         _shoppingReminderTime.hour,
+                      minute:       _shoppingReminderTime.minute,
+                    );
+                  } else {
+                    await LocalNotificationService.cancelShoppingReminder();
+                  }
+
+                  // Persist back to Firestore
+                  await FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(userID!)
+                      .collection('notificationSettings')
+                      .doc('shopping')
+                      .set({
+                        'shoppingReminderEnabled': _shoppingReminderEnabled,
+                        'shoppingReminderHour':     _shoppingReminderTime.hour,
+                        'shoppingReminderMinute':   _shoppingReminderTime.minute,
+                      }, SetOptions(merge: true));
+                },
+              ),
+            ),
+  //--------- NOTIFICATION SETTINGS END HERE -----------
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(uid)
-                    .collection('shoppinglistinfohere')
+                    .collection('household')
+                    .doc(householdID!)
+                    .collection('members')
+                    .doc(userID!)
+                    .collection('shopping_list')
+                    .orderBy('done')
                     .snapshots(),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) {

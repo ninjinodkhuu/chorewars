@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:expenses_tracker/local_notifications.dart';
 
 class ExpenseTracking extends StatefulWidget {
   const ExpenseTracking({super.key});
@@ -189,6 +190,13 @@ class _ExpenseTrackingState extends State<ExpenseTracking> {
                         'amount': amount,
                         'timestamp': FieldValue.serverTimestamp(),
                       });
+
+                      // Get a native notification
+                      print('Sending notification for $amount / $selectedCategory');
+                      await LocalNotificationService.sendExpenseNotification(
+                        amount,
+                        'New Expense Added: You have added a new expense of \$${amount.toStringAsFixed(2)} for $selectedCategory.',
+                      );
                     }
 
                     Navigator.pop(context);

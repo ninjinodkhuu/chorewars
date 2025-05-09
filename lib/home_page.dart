@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cw/ProfileScreen.dart';
-import 'package:cw/CalenderScreen.dart';
-import 'package:cw/Expense_tracking.dart';
-import 'package:cw/Gamification.dart';
-import 'package:cw/home_screen.dart';
-import 'package:cw/shopping_list.dart';
+import 'ProfileScreen.dart';
+import 'CalenderScreen.dart';
+import 'Expense_tracking.dart';
+import 'Gamification.dart';
+import 'home_screen.dart';
+import 'shopping_list.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});

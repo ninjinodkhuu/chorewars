@@ -1,5 +1,5 @@
-import 'package:cw/Data/Task.dart';
-import 'package:cw/SquareCard.dart';
+import 'Data/Task.dart';
+import 'SquareCard.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 class HomeScreen extends StatelessWidget {

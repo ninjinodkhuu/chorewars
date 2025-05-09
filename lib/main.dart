@@ -1,5 +1,5 @@
-import 'package:cw/auth_page.dart';
-import 'package:cw/local_notifications.dart';
+import 'auth_page.dart';
+import 'local_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -34,8 +34,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,  // Apply light theme
-      darkTheme: AppTheme.dark,  // Apply dark theme
-      themeMode: ThemeMode.system,  // Automatically switch based on system settings
+      //darkTheme: AppTheme.dark,  // Apply dark theme
+      //themeMode: ThemeMode.system,  // Automatically switch based on system settings
       home: const AuthPage(),
     );
   }

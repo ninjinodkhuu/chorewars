@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 enum TaskDifficulty {
   veryEasy(1),
   easy(2),
@@ -29,6 +31,55 @@ class Task {
   final DateTime? completedAt;
   final bool done;
   final String id;
+  factory Task.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final dueDate = data['dueDate'];
+    final acceptedAt = data['acceptedAt'];
+    final startedAt = data['startedAt'];
+    final completedAt = data['completed_at'];
+    final bool done = data['done'] ?? false;
+
+    // Default to veryEasy if no difficulty is specified
+    TaskDifficulty difficulty = TaskDifficulty.veryEasy;
+
+    // Try to determine difficulty from the data
+    if (data['difficulty'] != null) {
+      String difficultyStr = data['difficulty'].toString().toLowerCase().trim();
+      try {
+        difficulty = TaskDifficulty.values.firstWhere(
+          (d) => d.name.toLowerCase() == difficultyStr,
+          orElse: () => TaskDifficulty.veryEasy,
+        );
+      } catch (e) {
+        print('Error parsing difficulty string: $e');
+      }
+    } else if (data['points'] != null) {
+      try {
+        int points = (data['points'] is num)
+            ? (data['points'] as num).toInt()
+            : int.tryParse(data['points'].toString()) ?? 1;
+        difficulty = TaskDifficulty.fromValue(points);
+      } catch (e) {
+        print('Error parsing points: $e');
+      }
+    }
+
+    return Task(
+      id: doc.id,
+      category: data['category'] ?? '',
+      name: data['name'] ?? '',
+      date: dueDate != null ? (dueDate as Timestamp).toDate() : DateTime.now(),
+      difficulty: difficulty,
+      timeEstimateMinutes: data['timeEstimate'] ?? 0,
+      assignedTo: data['assignedTo'],
+      acceptedAt:
+          acceptedAt != null ? (acceptedAt as Timestamp).toDate() : null,
+      startedAt: startedAt != null ? (startedAt as Timestamp).toDate() : null,
+      completedAt:
+          completedAt != null ? (completedAt as Timestamp).toDate() : null,
+      done: done,
+    );
+  }
 
   Task({
     required this.category,

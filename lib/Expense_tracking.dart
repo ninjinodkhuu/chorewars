@@ -38,36 +38,47 @@ class _ExpenseTrackingState extends State<ExpenseTracking> {
   Future<void> _loadIncomeAndExpenses() async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      // Fetch monthly income
-      DocumentSnapshot incomeSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
+      try {
+        // Fetch monthly income
+        DocumentSnapshot incomeSnapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
 
-      // Fetch expenses
-      QuerySnapshot expensesSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('expenses')
-          .orderBy('timestamp', descending: true)
-          .get();
+        // Fetch expenses
+        QuerySnapshot expensesSnapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('expenses')
+            .orderBy('timestamp', descending: true)
+            .get();
 
-      setState(() {
-        monthlyIncome = incomeSnapshot['monthlyIncome'] ?? 0.0;
-        expenses = {};
-        for (var doc in expensesSnapshot.docs) {
-          String category = doc['category'];
-          double amount = doc['amount'];
-          if (expenses.containsKey(category)) {
-            expenses[category] = expenses[category]! + amount;
-          } else {
-            expenses[category] = amount;
-          }
+        if (mounted) {
+          final data = incomeSnapshot.data() as Map<String, dynamic>?;
+          setState(() {
+            // Safely get monthlyIncome from the document data
+            monthlyIncome = data != null
+                ? (data['monthlyIncome'] as num?)?.toDouble() ?? 0.0
+                : 0.0;
+
+            expenses = {};
+            for (var doc in expensesSnapshot.docs) {
+              final expenseData = doc.data() as Map<String, dynamic>;
+              String category = expenseData['category'] as String? ?? 'Other';
+              double amount =
+                  (expenseData['amount'] as num?)?.toDouble() ?? 0.0;
+              expenses.update(category, (value) => value + amount,
+                  ifAbsent: () => amount);
+            }
+          });
         }
-      });
 
-      if (monthlyIncome == 0.0) {
-        _promptAddIncome();
+        if (monthlyIncome == 0.0) {
+          _promptAddIncome();
+        }
+      } catch (e) {
+        print('Error loading income and expenses: $e');
+        // Show error to user if needed
       }
     }
   }

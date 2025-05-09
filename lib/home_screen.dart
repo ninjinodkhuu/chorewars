@@ -2,22 +2,35 @@ import 'package:cw/Data/Task.dart';
 import 'package:cw/SquareCard.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
 class HomeScreen extends StatelessWidget {
   final user = FirebaseAuth.instance.currentUser!;
   List<Task> tasks = [
-    Task(id: 'task_1', category: "Work", name: "Task 1", date: DateTime.now()),
     Task(
-        id: 'task_2',
-        category: "Home",
-        name: "Task 2",
-        date: DateTime.now().add(const Duration(days: 1))),
+      id: 'task_1',
+      category: "Work",
+      name: "Task 1",
+      date: DateTime.now(),
+      difficulty: TaskDifficulty.medium,  // Add difficulty here
+      timeEstimateMinutes: 30,
+    ),
     Task(
-        id: 'task_3',
-        category: "Personal",
-        name: "Task 3",
-        date: DateTime.now().add(const Duration(days: 2))),
+      id: 'task_2',
+      category: "Home",
+      name: "Task 2",
+      date: DateTime.now().add(const Duration(days: 1)),
+      difficulty: TaskDifficulty.easy,  // Add difficulty here
+      timeEstimateMinutes: 45,
+    ),
+    Task(
+      id: 'task_3',
+      category: "Personal",
+      name: "Task 3",
+      date: DateTime.now().add(const Duration(days: 2)),
+      difficulty: TaskDifficulty.hard,  // Add difficulty here
+      timeEstimateMinutes: 60,
+    ),
   ];
+
 
   HomeScreen({super.key});
 
@@ -47,7 +60,7 @@ class HomeScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Hello ' + user.email! + "!",
+                  "${'Hello ${user.email!}'}!",
                   style: TextStyle(
                     color: textColor,
                     fontSize: 23,

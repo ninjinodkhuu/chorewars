@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-// ProfileScreen is a stateful widget because it needs to manage the state of the household members and user profile.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -11,38 +10,102 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // Controller for the email input field used to invite new household members.
-  final TextEditingController _inviteEmailController = TextEditingController();
-  // List to store the IDs of household members.
   List<String> householdMembers = [];
-  // Map to store the emails of household members.
   Map<String, String> householdMemberEmails = {};
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
+  bool _isUsernameChanged = false;
 
   @override
   void initState() {
     super.initState();
-    // Load household members when the widget is initialized.
     _loadHouseholdMembers();
+    _loadUserEmail();
+    _loadUsername();
   }
 
-  // Method to load household members from Firestore.
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _usernameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadUserEmail() async {
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user != null && user.email != null) {
+      _emailController.text = user.email!;
+    }
+  }
+
+  Future<void> _loadUsername() async {
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      String username = userDoc.data()?.containsKey('username') == true
+          ? userDoc.get('username')
+          : user.email ?? '';
+
+      setState(() {
+        _usernameController.text = username;
+      });
+    }
+  }
+
+  Future<void> _saveUsername() async {
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user != null && _isUsernameChanged) {
+      try {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'username': _usernameController.text,
+        }, SetOptions(merge: true));
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Username updated successfully!'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+        setState(() {
+          _isUsernameChanged = false;
+        });
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Failed to update username'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _loadHouseholdMembers() async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      // Get the current user's document from Firestore.
       DocumentSnapshot snapshot = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
 
-      // Get the list of household member IDs from the user's document.
       List<String> memberIds =
           List<String>.from(snapshot['householdMembers'] ?? []);
       setState(() {
         householdMembers = memberIds;
       });
 
-      // Get the email addresses of each household member.
       for (String memberId in memberIds) {
         DocumentSnapshot memberSnapshot = await FirebaseFirestore.instance
             .collection('users')
@@ -55,90 +118,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // Method to invite a new member to the household.
-  Future<void> _inviteToHousehold() async {
-    String email = _inviteEmailController.text.trim();
-    if (email.isNotEmpty) {
-      // Find the user by email.
-      QuerySnapshot userSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .where('email', isEqualTo: email)
-          .get();
-
-      if (userSnapshot.docs.isNotEmpty) {
-        String invitedUserId = userSnapshot.docs.first.id;
-
-        User? user = FirebaseAuth.instance.currentUser;
-        if (user != null) {
-          // Add the invited user to the current user's household.
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .update({
-            'householdMembers': FieldValue.arrayUnion([invitedUserId])
-          });
-
-          // Add the current user to the invited user's household.
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(invitedUserId)
-              .update({
-            'householdMembers': FieldValue.arrayUnion([user.uid])
-          });
-
-          // Add the invited user to all current household members' households.
-          for (String memberId in householdMembers) {
-            await FirebaseFirestore.instance
-                .collection('users')
-                .doc(memberId)
-                .update({
-              'householdMembers': FieldValue.arrayUnion([invitedUserId])
-            });
-
-            // Add each household member to the invited user's household.
-            await FirebaseFirestore.instance
-                .collection('users')
-                .doc(invitedUserId)
-                .update({
-              'householdMembers': FieldValue.arrayUnion([memberId])
-            });
-          }
-
-          // Update the local state.
-          setState(() {
-            householdMembers.add(invitedUserId);
-            householdMemberEmails[invitedUserId] = email;
-          });
-
-          // Close the invite dialog.
-          Navigator.pop(context);
-        }
-      } else {
-        // Show error message if user not found.
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('User not found')),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // CustomScrollView allows for a scrollable view with slivers.
       body: CustomScrollView(
         key: const PageStorageKey<String>('profileScroll'),
         slivers: [
-          // SliverAppBar provides a flexible app bar.
           SliverAppBar(
             expandedHeight: 200.0,
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
-                color: Colors.blueAccent, // Background color of the app bar.
+                color: Colors.blueAccent,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // CircleAvatar to display the user's profile picture.
                     CircleAvatar(
                       radius: 50,
                       backgroundImage:
@@ -152,13 +145,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         color: Colors.white,
                       ),
                     ),
-                    // Positioned widget to place the camera icon at the bottom right of the profile picture.
                     Positioned(
                       bottom: 40,
                       right: 125,
                       child: GestureDetector(
                         onTap: () {
-                          // Handle changing the profile picture.
+                          // Handle changing the profile picture
                         },
                         child: const CircleAvatar(
                           radius: 15,
@@ -176,7 +168,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
-          // SliverToBoxAdapter allows for non-sliver widgets to be placed in a sliver.
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -184,23 +175,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 20),
-                  // TextFormField for the username.
                   TextFormField(
+                    controller: _usernameController,
                     decoration: const InputDecoration(
                       labelText: 'Username',
                       prefixIcon: Icon(Icons.person),
+                      helperText: 'This name will be visible to other members',
                     ),
+                    onChanged: (value) {
+                      setState(() {
+                        _isUsernameChanged = true;
+                      });
+                    },
                   ),
                   const SizedBox(height: 16),
-                  // TextFormField for the email address.
                   TextFormField(
+                    controller: _emailController,
                     decoration: const InputDecoration(
                       labelText: 'Email Address',
                       prefixIcon: Icon(Icons.email),
+                      helperText:
+                          'Your account email address cannot be changed',
                     ),
+                    readOnly: true,
+                    enabled: false,
                   ),
                   const SizedBox(height: 16),
-                  // DropdownButtonFormField for selecting the theme.
                   DropdownButtonFormField<String>(
                     decoration: const InputDecoration(
                       labelText: 'Theme',
@@ -216,20 +216,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: Text('Dark Theme'),
                       ),
                     ],
+                    value: 'Light',
                     onChanged: (value) {
-                      // Handle theme change.
+                      // Handle theme change
                     },
                   ),
                   const SizedBox(height: 24),
-                  // ElevatedButton to save profile changes.
                   ElevatedButton(
-                    onPressed: () {
-                      // Save profile changes.
-                    },
-                    child: const Text('Save Changes'),
+                    onPressed: _isUsernameChanged ? _saveUsername : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[900],
+                      disabledBackgroundColor: Colors.grey[400],
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text(
+                      'Save Changes',
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
                   const SizedBox(height: 24),
-                  // Text widget to display the title "Household Members".
                   const Text(
                     'Household Members',
                     style: TextStyle(
@@ -259,32 +267,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ],
-      ),
-      // FloatingActionButton to handle edit profile action.
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Invite Members to Household'),
-              content: TextField(
-                controller: _inviteEmailController,
-                decoration: const InputDecoration(labelText: 'Email Address'),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: _inviteToHousehold,
-                  child: const Text('Invite'),
-                ),
-              ],
-            ),
-          );
-        },
-        child: const Icon(Icons.person_add),
       ),
     );
   }

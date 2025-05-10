@@ -2,8 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-class ShoppingList extends StatelessWidget {
+class ShoppingList extends StatefulWidget {
   const ShoppingList({super.key});
+
+  @override
+  State<ShoppingList> createState() => _ShoppingListState();
+}
+
+class _ShoppingListState extends State<ShoppingList> {
+  final TextEditingController _itemController = TextEditingController();
+  String _selectedCategory = 'Food';
 
   // ===========================
   // Use Case 6.1: List Management Interface
@@ -67,101 +75,137 @@ class ShoppingList extends StatelessWidget {
       String unit,
       double price,
       String selectedCategory) {
-    final TextEditingController quantityController =
-        TextEditingController(text: quantity.toString());
-    final TextEditingController unitController =
-        TextEditingController(text: unit);
+    String currentCategory = selectedCategory;
     final TextEditingController priceController =
-        TextEditingController(text: price.toString());
+        TextEditingController(text: price > 0 ? price.toString() : '');
 
-    void updateDetails(String category) {
-      final updatedQuantity = int.tryParse(quantityController.text) ?? quantity;
-      final updatedUnit = unitController.text;
-      final updatedPrice = double.tryParse(priceController.text) ?? price;
-      updateItemDetails(
-          uid, itemId, updatedQuantity, updatedUnit, updatedPrice, category);
+    void updateDetails(String category, double? newPrice) {
+      if (newPrice != null) {
+        updateItemDetails(uid, itemId, 1, '', newPrice, category);
+      }
     }
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setState) {
-            String currentCategory = selectedCategory;
-
-            return Padding(
+            return Container(
+              margin: const EdgeInsets.all(16),
               padding: EdgeInsets.only(
                   bottom: MediaQuery.of(context).viewInsets.bottom),
-              child: Container(
-                padding: const EdgeInsets.all(16.0),
-                height: MediaQuery.of(context).size.height / 3,
-                width: MediaQuery.of(context).size.width,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Item: $itemName',
-                        style: const TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 10),
-                    DropdownButton<String>(
-                      value: currentCategory,
-                      onChanged: (String? newValue) {
-                        if (newValue != null) {
-                          setState(() {
-                            currentCategory = newValue;
-                          });
-                          updateDetails(newValue);
-                        }
-                      },
-                      items: <String>[
-                        'Food',
-                        'Transport',
-                        'Entertainment',
-                        'Bills',
-                        'Other'
-                      ].map<DropdownMenuItem<String>>((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(value),
-                        );
-                      }).toList(),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 6,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[900],
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
+                      ),
                     ),
-                    const SizedBox(height: 10),
-                    Row(
+                    width: double.infinity,
+                    child: Text(
+                      itemName,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: TextField(
-                            controller: quantityController,
-                            decoration:
-                                const InputDecoration(labelText: 'Quantity'),
-                            keyboardType: TextInputType.number,
-                            onChanged: (_) => updateDetails(currentCategory),
+                        const Text(
+                          'Category',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: TextField(
-                            controller: unitController,
-                            decoration:
-                                const InputDecoration(labelText: 'Unit'),
-                            onChanged: (_) => updateDetails(currentCategory),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          value: currentCategory,
+                          decoration: InputDecoration(
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[100],
+                          ),
+                          onChanged: (String? newValue) {
+                            if (newValue != null) {
+                              setState(() {
+                                currentCategory = newValue;
+                              });
+                              final newPrice =
+                                  double.tryParse(priceController.text);
+                              updateDetails(newValue, newPrice);
+                            }
+                          },
+                          items: <String>[
+                            'Food',
+                            'Transport',
+                            'Entertainment',
+                            'Bills',
+                            'Other'
+                          ].map<DropdownMenuItem<String>>((String value) {
+                            return DropdownMenuItem<String>(
+                              value: value,
+                              child: Text(value),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Amount',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: TextField(
-                            controller: priceController,
-                            decoration:
-                                const InputDecoration(labelText: 'Price'),
-                            keyboardType: TextInputType.number,
-                            onChanged: (_) => updateDetails(currentCategory),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: priceController,
+                          decoration: InputDecoration(
+                            hintText: 'Enter amount',
+                            prefixText: '\$',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[100],
                           ),
+                          keyboardType:
+                              TextInputType.numberWithOptions(decimal: true),
+                          onChanged: (value) {
+                            final newPrice = double.tryParse(value);
+                            updateDetails(currentCategory, newPrice);
+                          },
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             );
           },
@@ -187,79 +231,173 @@ class ShoppingList extends StatelessWidget {
     await deleteItem(uid, itemId);
   }
 
+  Future<void> showExpenseConversionDialog(BuildContext context, String uid,
+      String itemId, String itemName, String category) {
+    return showDialog(
+      context: context,
+      builder: (context) {
+        final priceController = TextEditingController();
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: Text(
+            'Add "$itemName" as Expense?',
+            style: TextStyle(color: Colors.blue[900]),
+          ),
+          content: TextField(
+            controller: priceController,
+            decoration: InputDecoration(
+              hintText: 'Enter amount',
+              prefixText: '\$',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              filled: true,
+              fillColor: Colors.grey[50],
+            ),
+            keyboardType: TextInputType.numberWithOptions(decimal: true),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('No'),
+            ),
+            TextButton(
+              onPressed: () {
+                final expensePrice =
+                    double.tryParse(priceController.text) ?? 0.0;
+                if (expensePrice > 0) {
+                  convertToExpense(uid, itemId, category, expensePrice);
+                }
+                Navigator.pop(context);
+              },
+              child: const Text('Yes'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final TextEditingController itemController = TextEditingController();
-    String selectedCategory = 'Food';
     final User? user = FirebaseAuth.instance.currentUser;
     final String uid = user?.uid ?? '';
 
     return Scaffold(
+      backgroundColor: Colors.blue[50],
       appBar: AppBar(
-        title: const Text('Shopping List'),
+        backgroundColor: Colors.blue[100],
+        title: Text(
+          'Shopping List',
+          style: TextStyle(
+            color: Colors.blue[900],
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
       body: Center(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            Container(
+              padding: EdgeInsets.all(16.0),
               child: Column(
                 children: [
-                  TextField(
-                    controller: itemController,
-                    decoration: const InputDecoration(labelText: 'Enter item'),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    value: selectedCategory,
-                    decoration: const InputDecoration(labelText: 'Category'),
-                    onChanged: (String? newValue) {
-                      if (newValue != null) {
-                        selectedCategory = newValue;
-                      }
-                    },
-                    items: <String>[
-                      'Food',
-                      'Transport',
-                      'Entertainment',
-                      'Bills',
-                      'Other'
-                    ].map<DropdownMenuItem<String>>((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(value),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      if (uid.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('No user logged in.'),
-                            backgroundColor: Colors.red,
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          TextField(
+                            controller: _itemController,
+                            decoration: InputDecoration(
+                              labelText: 'Item',
+                              filled: true,
+                              fillColor: Colors.grey[50],
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
                           ),
-                        );
-                        return;
-                      }
-
-                      if (itemController.text.trim().isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Please name your item!'),
-                            backgroundColor: Colors.red,
+                          SizedBox(height: 16),
+                          Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey[300]!),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: EdgeInsets.symmetric(horizontal: 12),
+                            child: DropdownButton<String>(
+                              isExpanded: true,
+                              value: _selectedCategory,
+                              underline:
+                                  Container(), // Remove the default underline
+                              items: <String>[
+                                'Food',
+                                'Transport',
+                                'Entertainment',
+                                'Bills',
+                                'Other'
+                              ].map<DropdownMenuItem<String>>((String value) {
+                                return DropdownMenuItem<String>(
+                                  value: value,
+                                  child: Text(value),
+                                );
+                              }).toList(),
+                              onChanged: (String? value) {
+                                setState(() {
+                                  _selectedCategory = value!;
+                                });
+                              },
+                            ),
                           ),
-                        );
-                        return;
-                      }
+                          SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: () {
+                              if (uid.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('No user logged in.'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
+                              if (_itemController.text.trim().isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Please name your item!'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
 
-                      addItem(uid, itemController.text.trim(),
-                          category: selectedCategory);
-                      itemController.clear();
-                    },
-                    child: const Text('Add Item'),
+                              addItem(uid, _itemController.text.trim(),
+                                  category: _selectedCategory);
+                              _itemController.clear();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue[900],
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 32, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Text(
+                              'Add Item',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -289,7 +427,39 @@ class ShoppingList extends StatelessWidget {
                   }).toList();
                   final sortedItems = [...notDoneItems, ...doneItems];
 
+                  if (sortedItems.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.shopping_cart_outlined,
+                            size: 64,
+                            color: Colors.blue[200],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Your shopping list is empty',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue[900],
+                            ),
+                          ),
+                          Text(
+                            'Add some items above',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
                   return ListView.builder(
+                    padding: const EdgeInsets.all(16),
                     itemCount: sortedItems.length,
                     itemBuilder: (context, index) {
                       final item = sortedItems[index];
@@ -314,145 +484,147 @@ class ShoppingList extends StatelessWidget {
                           deleteItem(uid, itemId);
                         },
                         background: Container(
-                          color: Colors.red,
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade400,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                           alignment: Alignment.centerRight,
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           child: const Icon(Icons.delete, color: Colors.white),
                         ),
-                        child: ListTile(
-                          leading: IconButton(
-                            icon: Icon(
-                              itemDone
-                                  ? Icons.check_circle
-                                  : Icons.radio_button_unchecked,
-                              color: itemDone ? Colors.green : null,
+                        child: Card(
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 2,
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
                             ),
-                            onPressed: () async {
-                              try {
-                                await toggleDone(uid, itemId, itemDone);
+                            leading: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: itemDone
+                                    ? Colors.green.withOpacity(0.2)
+                                    : Colors.blue[900]!.withOpacity(0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: IconButton(
+                                icon: Icon(
+                                  itemDone
+                                      ? Icons.check_circle
+                                      : Icons.radio_button_unchecked,
+                                  color: itemDone
+                                      ? Colors.green
+                                      : Colors.blue[900],
+                                ),
+                                onPressed: () async {
+                                  try {
+                                    await toggleDone(uid, itemId, itemDone);
 
-                                if (!itemDone) {
-                                  // Show dialog to add expense when marking as done
-                                  // ignore: use_build_context_synchronously
-                                  showDialog(
-                                    context: context,
-                                    builder: (context) {
-                                      final priceController =
-                                          TextEditingController(
-                                              text: price > 0
-                                                  ? price.toString()
-                                                  : '');
-                                      return AlertDialog(
-                                        title: const Text('Add as Expense?'),
-                                        content: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                                'Would you like to add "$itemName" as an expense?'),
-                                            const SizedBox(height: 16),
-                                            TextField(
-                                              controller: priceController,
-                                              decoration: const InputDecoration(
-                                                labelText: 'Price',
-                                                prefixText: '\$',
-                                              ),
-                                              keyboardType:
-                                                  TextInputType.number,
-                                            ),
-                                          ],
+                                    if (!itemDone) {
+                                      // Show dialog to add expense when marking as done
+                                      // ignore: use_build_context_synchronously
+                                      showExpenseConversionDialog(context, uid,
+                                          itemId, itemName, category);
+                                    }
+
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          itemDone
+                                              ? 'Item marked incomplete'
+                                              : '✅ Item completed!',
+                                          style: const TextStyle(fontSize: 16),
                                         ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () {
-                                              Navigator.pop(context);
-                                            },
-                                            child: const Text('No'),
-                                          ),
-                                          TextButton(
-                                            onPressed: () {
-                                              final expensePrice =
-                                                  double.tryParse(
-                                                          priceController
-                                                              .text) ??
-                                                      0.0;
-                                              if (expensePrice > 0) {
-                                                convertToExpense(uid, itemId,
-                                                    category, expensePrice);
-                                              }
-                                              Navigator.pop(context);
-                                            },
-                                            child: const Text('Yes'),
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  );
-                                }
-
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      itemDone
-                                          ? 'Item marked incomplete'
-                                          : '✅ Item completed!',
-                                      style: const TextStyle(fontSize: 16),
-                                    ),
-                                    backgroundColor:
-                                        itemDone ? Colors.orange : Colors.green,
-                                    behavior: SnackBarBehavior.floating,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(15),
-                                    ),
-                                    duration: const Duration(seconds: 2),
+                                        backgroundColor: itemDone
+                                            ? Colors.orange
+                                            : Colors.green,
+                                        behavior: SnackBarBehavior.floating,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(15),
+                                        ),
+                                        duration: const Duration(seconds: 2),
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: const Text(
+                                          'Something went wrong!',
+                                          style: TextStyle(fontSize: 16),
+                                        ),
+                                        backgroundColor: Colors.red,
+                                        behavior: SnackBarBehavior.floating,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(15),
+                                        ),
+                                      ),
+                                    );
+                                    print('Error toggling shopping item: $e');
+                                  }
+                                },
+                              ),
+                            ),
+                            title: Text(
+                              itemName,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                decoration: itemDone
+                                    ? TextDecoration.lineThrough
+                                    : TextDecoration.none,
+                                color: itemDone ? Colors.grey : Colors.black,
+                              ),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  unit.isNotEmpty
+                                      ? (price > 0
+                                          ? '$quantity x $unit   \$${price.toStringAsFixed(2)}'
+                                          : '$quantity x $unit')
+                                      : (price > 0
+                                          ? '$quantity   \$${price.toStringAsFixed(2)}'
+                                          : '$quantity'),
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
                                   ),
-                                );
-                              } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: const Text(
-                                      'Something went wrong!',
-                                      style: TextStyle(fontSize: 16),
-                                    ),
-                                    backgroundColor: Colors.red,
-                                    behavior: SnackBarBehavior.floating,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(15),
+                                ),
+                                Container(
+                                  margin: const EdgeInsets.only(top: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue[100]!.withOpacity(0.3),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    category,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.blue[900],
                                     ),
                                   ),
-                                );
-                                print('Error toggling shopping item: $e');
-                              }
+                                ),
+                              ],
+                            ),
+                            onTap: () {
+                              showItemDetails(context, uid, itemId, itemName,
+                                  quantity, unit, price, category);
                             },
                           ),
-                          title: Text(
-                            itemName,
-                            style: TextStyle(
-                              decoration: itemDone
-                                  ? TextDecoration.lineThrough
-                                  : TextDecoration.none,
-                            ),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                unit.isNotEmpty
-                                    ? (price > 0
-                                        ? '$quantity x $unit   \$${price.toStringAsFixed(2)}'
-                                        : '$quantity x $unit')
-                                    : (price > 0
-                                        ? '$quantity   \$${price.toStringAsFixed(2)}'
-                                        : '$quantity'),
-                              ),
-                              Text(category,
-                                  style: TextStyle(
-                                      color: Colors.grey[600], fontSize: 12)),
-                            ],
-                          ),
-                          onTap: () {
-                            showItemDetails(context, uid, itemId, itemName,
-                                quantity, unit, price, category);
-                          },
                         ),
                       );
                     },

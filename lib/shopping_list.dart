@@ -195,8 +195,8 @@ class _ShoppingListState extends State<ShoppingList> {
                             filled: true,
                             fillColor: Colors.grey[100],
                           ),
-                          keyboardType:
-                              TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
                           autofocus: true,
                           onChanged: (value) {
                             final newPrice = double.tryParse(value);
@@ -328,7 +328,7 @@ class _ShoppingListState extends State<ShoppingList> {
         child: Column(
           children: [
             Container(
-              padding: EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
                   Card(
@@ -337,7 +337,7 @@ class _ShoppingListState extends State<ShoppingList> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Padding(
-                      padding: EdgeInsets.all(16.0),
+                      padding: const EdgeInsets.all(16.0),
                       child: Column(
                         children: [
                           TextField(
@@ -351,13 +351,13 @@ class _ShoppingListState extends State<ShoppingList> {
                               ),
                             ),
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
                           Container(
                             decoration: BoxDecoration(
                               border: Border.all(color: Colors.grey[300]!),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            padding: EdgeInsets.symmetric(horizontal: 12),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
                             child: DropdownButton<String>(
                               isExpanded: true,
                               value: _selectedCategory,
@@ -382,7 +382,7 @@ class _ShoppingListState extends State<ShoppingList> {
                               },
                             ),
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
                           ElevatedButton(
                             onPressed: () {
                               if (uid.isEmpty) {
@@ -410,13 +410,13 @@ class _ShoppingListState extends State<ShoppingList> {
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.blue[900],
-                              padding: EdgeInsets.symmetric(
+                              padding: const EdgeInsets.symmetric(
                                   horizontal: 32, vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
                             ),
-                            child: Text(
+                            child: const Text(
                               'Add Item',
                               style: TextStyle(color: Colors.white),
                             ),

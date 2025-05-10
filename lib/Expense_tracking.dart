@@ -265,9 +265,9 @@ class _ExpenseTrackingState extends State<ExpenseTracking> {
               ),
               child: Column(
                 children: [
-                  Text(
+                  const Text(
                     'Monthly Income',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       color: Colors.white,
                       fontWeight: FontWeight.w500,
@@ -601,8 +601,7 @@ class _Badge extends StatelessWidget {
   final double value;
   final bool isTouched;
 
-  const _Badge(this.label, this.color, this.value, this.isTouched, {Key? key})
-      : super(key: key);
+  const _Badge(this.label, this.color, this.value, this.isTouched, {super.key});
 
   @override
   Widget build(BuildContext context) {

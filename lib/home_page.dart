@@ -1,3 +1,4 @@
+// Import screens and services
 import 'package:chore/CalenderScreen.dart';
 import 'package:chore/Chat.dart';
 import 'package:chore/Expense_tracking.dart';
@@ -10,6 +11,8 @@ import 'package:chore/household_members_screen.dart';
 import 'package:chore/ProfileScreen.dart';
 import 'package:chore/services/household_service.dart';
 
+/// Main home page of the application
+/// Contains bottom navigation and manages different screens
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -18,14 +21,19 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  // Get current authenticated user
   final user = FirebaseAuth.instance.currentUser!;
+  // Track selected navigation item
   int _selectedIndex = 0;
+  // Controller for page view
   final PageController _pageController = PageController();
 
+  /// Signs out the current user
   void signUserOut() {
     FirebaseAuth.instance.signOut();
   }
 
+  /// Handles bottom navigation bar item taps
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -33,6 +41,7 @@ class _HomePageState extends State<HomePage> {
     _pageController.jumpToPage(index);
   }
 
+  /// Navigate to household members screen
   void viewHouseholdMembers(BuildContext context) {
     Navigator.push(
       context,
@@ -45,6 +54,7 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.blue[100],
+        // Stream builder for dynamic app bar title
         title: StreamBuilder<Widget>(
           stream: HouseholdService.streamAppBarTitle(),
           builder: (context, snapshot) {
@@ -52,10 +62,12 @@ class _HomePageState extends State<HomePage> {
           },
         ),
         actions: [
+          // Household members button
           IconButton(
             icon: const Icon(Icons.group),
             onPressed: () => viewHouseholdMembers(context),
           ),
+          // Chat button
           IconButton(
             icon: const Icon(Icons.chat),
             onPressed: () {
@@ -65,6 +77,7 @@ class _HomePageState extends State<HomePage> {
               );
             },
           ),
+          // Profile button
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () {
@@ -74,12 +87,14 @@ class _HomePageState extends State<HomePage> {
               );
             },
           ),
+          // Logout button
           IconButton(
             onPressed: signUserOut,
             icon: const Icon(Icons.logout),
           )
         ],
       ),
+      // Bottom navigation bar with 5 main sections
       bottomNavigationBar: BottomNavigationBar(
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),

@@ -1,12 +1,16 @@
+// Import required Firebase and Flutter packages
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+// Import custom components
 import 'components/my_button.dart';
 import 'components/my_textfield.dart';
 import 'components/square_tile.dart';
 
-// LoginPage is a stateful widget because it needs to manage the state of the text fields and the sign-in process.
+/// LoginPage widget that handles user authentication
+/// Provides email/password login functionality with error handling
 class LoginPage extends StatefulWidget {
-  final Function()? onTap; // Callback function for the "Register now" button.
+  // Callback function triggered when user wants to switch to registration
+  final Function()? onTap;
   const LoginPage({super.key, required this.onTap});
 
   @override
@@ -14,17 +18,19 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  // Text editing controllers to retrieve the values entered in the text fields.
+  // Controllers for the email and password input fields
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
-  // Method to sign the user in.
+  /// Attempts to sign in the user with provided credentials
+  /// Shows loading indicator during sign-in process
+  /// Handles various authentication errors
   void signUserIn() async {
-    // Check if email or password is empty.
+    // Validate that email and password fields are not empty
     if (emailController.text.isEmpty || passwordController.text.isEmpty) {
-      // Pop the loading circle if shown.
+      // Remove loading indicator if shown
       Navigator.of(context).pop();
-      // Show error message.
+      // Display error for empty fields
       showDialog(
         context: context,
         builder: (context) {
@@ -42,7 +48,7 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    // Show loading circle.
+    // Show loading indicator while attempting to sign in
     showDialog(
       context: context,
       builder: (context) {
@@ -52,29 +58,27 @@ class _LoginPageState extends State<LoginPage> {
       },
     );
 
-    // Try to sign in.
+    // Attempt Firebase authentication
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: emailController.text,
         password: passwordController.text,
       );
-      // Pop the loading circle.
+      // Remove loading indicator after successful sign-in
       Navigator.of(context).pop();
     } on FirebaseAuthException catch (e) {
-      // Pop the loading circle.
+      // Remove loading indicator
       Navigator.of(context).pop();
-      // Handle specific error codes.
+      // Handle specific authentication errors
       if (e.code == 'user-not-found') {
-        // Show error message for wrong email.
         wrongEmailMessage();
       } else if (e.code == 'wrong-password') {
-        // Show error message for wrong password.
         wrongPasswordMessage();
       }
     }
   }
 
-  // Method to show a popup message for wrong email.
+  /// Displays an error dialog for incorrect email
   void wrongEmailMessage() {
     showDialog(
       context: context,
@@ -92,7 +96,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // Method to show a popup message for wrong password.
+  /// Displays an error dialog for incorrect password
   void wrongPasswordMessage() {
     showDialog(
       context: context,

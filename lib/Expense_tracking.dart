@@ -14,15 +14,16 @@ class _ExpenseTrackingState extends State<ExpenseTracking> {
   double monthlyIncome = 0.0;
   Map<String, double> expenses = {};
   List<Color> pieColors = [
-    Colors.red,
-    Colors.blue,
-    Colors.green,
-    Colors.orange,
-    Colors.purple,
-    Colors.yellow,
-    Colors.cyan,
-    Colors.pink,
+    const Color(0xFF2196F3), // Blue
+    const Color(0xFFFFA726), // Orange
+    const Color(0xFF66BB6A), // Green
+    const Color(0xFFF44336), // Red
+    const Color(0xFF9C27B0), // Purple
+    const Color(0xFF29B6F6), // Light Blue
+    const Color(0xFFFF7043), // Deep Orange
+    const Color(0xFF26A69A), // Teal
   ];
+  int touchedIndex = -1;
 
   @override
   void initState() {
@@ -233,95 +234,167 @@ class _ExpenseTrackingState extends State<ExpenseTracking> {
   Widget build(BuildContext context) {
     double totalExpenses = expenses.values.fold(0.0, (sum, item) => sum + item);
     double remainingBudget = monthlyIncome - totalExpenses;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 600;
 
     return Scaffold(
+      backgroundColor: Colors.blue[50],
       appBar: AppBar(
-        title: const Text('Budget Tracking'),
+        backgroundColor: Colors.blue[100],
+        title: Text(
+          'Budget Tracking',
+          style: TextStyle(
+            color: Colors.blue[900],
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
-      body: Column(
-        children: [
-          // Display pie chart of expenses
-          SizedBox(
-            height: 200,
-            child: Stack(
-              children: [
-                PieChart(
-                  PieChartData(
-                    sections: [
-                      PieChartSectionData(
-                        color: Colors.grey,
-                        value: remainingBudget,
-                        title: 'Remaining',
-                        radius: 50,
-                        titleStyle: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      ...expenses.entries.map((entry) {
-                        int index = expenses.keys.toList().indexOf(entry.key);
-                        return PieChartSectionData(
-                          color: pieColors[index % pieColors.length],
-                          value: entry.value,
-                          title:
-                              '${entry.key}: \$${entry.value.toStringAsFixed(2)}',
-                          radius: 50,
-                          titleStyle: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Color.fromARGB(255, 0, 0, 0),
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Header Section with Monthly Income
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.blue[900],
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
                 ),
-                Center(
-                  child: Text(
-                    '\$${remainingBudget.toStringAsFixed(2)}',
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    'Monthly Income',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '\$${monthlyIncome.toStringAsFixed(2)}',
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black,
+                      color: Colors.white,
                     ),
                   ),
+                ],
+              ),
+            ),
+
+            // Expense Chart Section
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
-              ],
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: isSmallScreen
+                      ? Column(
+                          children: [
+                            SizedBox(
+                              height: 200,
+                              child: _buildChart(remainingBudget),
+                            ),
+                            const Divider(height: 32),
+                            SizedBox(
+                              height: 200,
+                              child: _buildLegend(remainingBudget),
+                            ),
+                          ],
+                        )
+                      : SizedBox(
+                          height: 300,
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: _buildChart(remainingBudget),
+                              ),
+                              const VerticalDivider(width: 32),
+                              Expanded(
+                                flex: 2,
+                                child: _buildLegend(remainingBudget),
+                              ),
+                            ],
+                          ),
+                        ),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Items',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          // Display list of expenses
-          Expanded(
-            child: ListView.builder(
-              itemCount: expenses.length,
-              itemBuilder: (context, index) {
-                String category = expenses.keys.elementAt(index);
-                double amount = expenses[category]!;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(
-                      vertical: 4.0, horizontal: 14.0),
-                  child: ListTile(
-                    title: Text('$category: \$${amount.toStringAsFixed(2)}'),
-                    tileColor: Colors.black12,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+
+            // List of Expenses
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        'Expense Details',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue[900],
+                        ),
+                      ),
                     ),
-                  ),
-                );
-              },
+                    const Divider(height: 1),
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: expenses.length,
+                      itemBuilder: (context, index) {
+                        String category = expenses.keys.elementAt(index);
+                        double amount = expenses[category]!;
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: pieColors[index % pieColors.length]
+                                .withOpacity(0.2),
+                            child: Icon(
+                              Icons.category,
+                              color: pieColors[index % pieColors.length],
+                            ),
+                          ),
+                          title: Text(
+                            category,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          trailing: Text(
+                            '\$${amount.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              color: Colors.blue[900],
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton(
+        backgroundColor: Colors.blue[900],
         onPressed: () {
           showModalBottomSheet(
             context: context,
@@ -350,7 +423,224 @@ class _ExpenseTrackingState extends State<ExpenseTracking> {
             },
           );
         },
-        child: const Icon(Icons.add),
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildChart(double remainingBudget) {
+    return AspectRatio(
+      aspectRatio: 1,
+      child: Stack(
+        children: [
+          PieChart(
+            PieChartData(
+              pieTouchData: PieTouchData(
+                touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                  setState(() {
+                    if (!event.isInterestedForInteractions ||
+                        pieTouchResponse == null ||
+                        pieTouchResponse.touchedSection == null) {
+                      touchedIndex = -1;
+                      return;
+                    }
+                    touchedIndex =
+                        pieTouchResponse.touchedSection!.touchedSectionIndex;
+                  });
+                },
+              ),
+              sectionsSpace: 0,
+              centerSpaceRadius: 50,
+              sections: [
+                if (remainingBudget > 0)
+                  PieChartSectionData(
+                    color: Colors.grey.shade200,
+                    value: remainingBudget,
+                    title: '',
+                    radius: touchedIndex == 0 ? 60 : 50,
+                    showTitle: false,
+                  ),
+                ...expenses.entries.map((entry) {
+                  final index = expenses.keys.toList().indexOf(entry.key) +
+                      (remainingBudget > 0 ? 1 : 0);
+                  final isTouched = index == touchedIndex;
+                  return PieChartSectionData(
+                    color: pieColors[index % pieColors.length],
+                    value: entry.value,
+                    title: '',
+                    radius: isTouched ? 60 : 50,
+                    showTitle: false,
+                  );
+                }),
+              ],
+            ),
+            swapAnimationDuration: const Duration(milliseconds: 150),
+            swapAnimationCurve: Curves.easeInOutQuad,
+          ),
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Balance',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '\$${remainingBudget.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[900],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLegend(double remainingBudget) {
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (remainingBudget > 0) ...[
+            _buildLegendItem(
+              'Remaining',
+              Colors.grey.shade200,
+              remainingBudget,
+              0,
+            ),
+            const Divider(height: 16),
+          ],
+          ...expenses.entries.map((entry) {
+            final index = expenses.keys.toList().indexOf(entry.key) +
+                (remainingBudget > 0 ? 1 : 0);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12.0),
+              child: _buildLegendItem(
+                entry.key,
+                pieColors[index % pieColors.length],
+                entry.value,
+                index,
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLegendItem(String label, Color color, double value, int index) {
+    final isTouched = index == touchedIndex;
+    return InkWell(
+      onTap: () => setState(() {
+        touchedIndex = isTouched ? -1 : index;
+      }),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+        decoration: BoxDecoration(
+          color: isTouched ? color.withOpacity(0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight:
+                          isTouched ? FontWeight.bold : FontWeight.normal,
+                      color: Colors.blue[900],
+                    ),
+                  ),
+                  Text(
+                    '\$${value.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                      fontWeight:
+                          isTouched ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Badge extends StatelessWidget {
+  final String label;
+  final Color color;
+  final double value;
+  final bool isTouched;
+
+  const _Badge(this.label, this.color, this.value, this.isTouched, {Key? key})
+      : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(8.0),
+      decoration: BoxDecoration(
+        color: isTouched ? color.withOpacity(0.8) : color,
+        borderRadius: BorderRadius.circular(8.0),
+        boxShadow: isTouched
+            ? [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  offset: const Offset(0, 3),
+                  blurRadius: 6,
+                )
+              ]
+            : [],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '\$${value.toStringAsFixed(2)}',
+            style: const TextStyle(
+              fontSize: 12,
+              color: Colors.white,
+            ),
+          ),
+        ],
       ),
     );
   }

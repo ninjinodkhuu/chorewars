@@ -9,7 +9,8 @@ class ShoppingList extends StatelessWidget {
   // Use Case 6.1: List Management Interface
   // ===========================
 
-  Future<void> addItem(String uid, String item) async {
+  Future<void> addItem(String uid, String item,
+      {String category = 'Food'}) async {
     await FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
@@ -19,7 +20,8 @@ class ShoppingList extends StatelessWidget {
       'done': false,
       'quantity': 1,
       'unit': '',
-      'price': 0.0
+      'price': 0.0,
+      'category': category
     });
   }
 
@@ -42,7 +44,7 @@ class ShoppingList extends StatelessWidget {
   }
 
   Future<void> updateItemDetails(String uid, String itemId, int quantity,
-      String unit, double price) async {
+      String unit, double price, String category) async {
     await FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
@@ -52,11 +54,19 @@ class ShoppingList extends StatelessWidget {
       'quantity': quantity,
       'unit': unit,
       'price': price,
+      'category': category,
     });
   }
 
-  void showItemDetails(BuildContext context, String uid, String itemId,
-      String itemName, int quantity, String unit, double price) {
+  void showItemDetails(
+      BuildContext context,
+      String uid,
+      String itemId,
+      String itemName,
+      int quantity,
+      String unit,
+      double price,
+      String selectedCategory) {
     final TextEditingController quantityController =
         TextEditingController(text: quantity.toString());
     final TextEditingController unitController =
@@ -64,108 +74,237 @@ class ShoppingList extends StatelessWidget {
     final TextEditingController priceController =
         TextEditingController(text: price.toString());
 
-    void updateDetails() {
+    void updateDetails(String category) {
       final updatedQuantity = int.tryParse(quantityController.text) ?? quantity;
       final updatedUnit = unitController.text;
       final updatedPrice = double.tryParse(priceController.text) ?? price;
       updateItemDetails(
-          uid, itemId, updatedQuantity, updatedUnit, updatedPrice);
+          uid, itemId, updatedQuantity, updatedUnit, updatedPrice, category);
     }
-
-    quantityController.addListener(updateDetails);
-    unitController.addListener(updateDetails);
-    priceController.addListener(updateDetails);
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       builder: (context) {
-        return Padding(
-          padding:
-              EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-          child: Container(
-            padding: const EdgeInsets.all(16.0),
-            height: MediaQuery.of(context).size.height / 4,
-            width: MediaQuery.of(context).size.width,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Item: $itemName',
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 10),
-                Row(
+        return StatefulBuilder(
+          builder: (context, setState) {
+            String currentCategory = selectedCategory;
+
+            return Padding(
+              padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom),
+              child: Container(
+                padding: const EdgeInsets.all(16.0),
+                height: MediaQuery.of(context).size.height / 3,
+                width: MediaQuery.of(context).size.width,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: quantityController,
-                        decoration:
-                            const InputDecoration(labelText: 'Quantity'),
-                        keyboardType: TextInputType.number,
-                      ),
+                    Text('Item: $itemName',
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    DropdownButton<String>(
+                      value: currentCategory,
+                      onChanged: (String? newValue) {
+                        if (newValue != null) {
+                          setState(() {
+                            currentCategory = newValue;
+                          });
+                          updateDetails(newValue);
+                        }
+                      },
+                      items: <String>[
+                        'Food',
+                        'Transport',
+                        'Entertainment',
+                        'Bills',
+                        'Other'
+                      ].map<DropdownMenuItem<String>>((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: unitController,
-                        decoration: const InputDecoration(labelText: 'Unit'),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: priceController,
-                        decoration: const InputDecoration(labelText: 'Price'),
-                        keyboardType: TextInputType.number,
-                      ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: quantityController,
+                            decoration:
+                                const InputDecoration(labelText: 'Quantity'),
+                            keyboardType: TextInputType.number,
+                            onChanged: (_) => updateDetails(currentCategory),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: unitController,
+                            decoration:
+                                const InputDecoration(labelText: 'Unit'),
+                            onChanged: (_) => updateDetails(currentCategory),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: priceController,
+                            decoration:
+                                const InputDecoration(labelText: 'Price'),
+                            keyboardType: TextInputType.number,
+                            onChanged: (_) => updateDetails(currentCategory),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
   }
 
+  Future<void> convertToExpense(
+      String uid, String itemId, String category, double price) async {
+    // Add the expense
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('expenses')
+        .add({
+      'category': category,
+      'amount': price,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    // Update the item's price and mark it as converted to expense
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('shoppinglistinfohere')
+        .doc(itemId)
+        .update({
+      'price': price,
+      'convertedToExpense': true,
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final TextEditingController itemController = TextEditingController();
+    String selectedCategory = 'Food';
     final User? user = FirebaseAuth.instance.currentUser;
-    final String uid = user?.uid ?? '';
-
-    return Scaffold(
+    final String uid = user?.uid ?? '';    return Scaffold(
+      backgroundColor: Colors.blue[50],
       appBar: AppBar(
-        title: const Text('Shopping List'),
+        backgroundColor: Colors.blue[100],
+        title: Text(
+          'Shopping List',
+          style: TextStyle(
+            color: Colors.blue[900],
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
-      body: Center(
+      body: Container(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SizedBox(
-              width: 350,
-              child: TextField(
-                controller: itemController,
-                decoration: const InputDecoration(labelText: 'Enter item'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),              child: Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: itemController,
+                        decoration: InputDecoration(
+                          labelText: 'Enter item',
+                          labelStyle: TextStyle(color: Colors.blue[900]),
+                          focusedBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(color: Colors.blue[900]!),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        value: selectedCategory,
+                        decoration: InputDecoration(
+                          labelText: 'Category',
+                          labelStyle: TextStyle(color: Colors.blue[900]),
+                          focusedBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(color: Colors.blue[900]!),
+                          ),
+                        ),
+                    onChanged: (String? newValue) {
+                      if (newValue != null) {
+                        selectedCategory = newValue;
+                      }
+                    },
+                    items: <String>[
+                      'Food',
+                      'Transport',
+                      'Entertainment',
+                      'Bills',
+                      'Other'
+                    ].map<DropdownMenuItem<String>>((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(value),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[900],
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ),
+                    onPressed: () {
+                      if (uid.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('No user logged in.'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
+
+                      if (itemController.text.trim().isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please name your item!'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
+
+                      addItem(uid, itemController.text.trim(),
+                          category: selectedCategory);
+                      itemController.clear();
+                    },
+                    child: const Text('Add Item'),
+                  ),
+                ],
               ),
             ),
-            ElevatedButton(
-              onPressed: () {
-                if (uid.isNotEmpty) {
-                  addItem(uid, itemController.text);
-                  itemController.clear();
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('No user logged in')),
-                  );
-                }
-              },
-              child: const Text('Add Item'),
-            ),
-            // ===========================
-            // Use Case 6.2: Shared Access and Updates
-            // ===========================
+            const SizedBox(height: 16),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
@@ -188,9 +327,8 @@ class ShoppingList extends StatelessWidget {
                         !data.containsKey('done') ||
                         !data['done'];
                   }).toList();
-                  final sortedItems = [...notDoneItems, ...doneItems];
-
-                  return ListView.builder(
+                  final sortedItems = [...notDoneItems, ...doneItems];                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     itemCount: sortedItems.length,
                     itemBuilder: (context, index) {
                       final item = sortedItems[index];
@@ -204,6 +342,9 @@ class ShoppingList extends StatelessWidget {
                       final unit = data.containsKey('unit') ? data['unit'] : '';
                       final price =
                           data.containsKey('price') ? data['price'] : 0.0;
+                      final category = data.containsKey('category')
+                          ? data['category']
+                          : 'Food';
 
                       return Dismissible(
                         key: Key(itemId),
@@ -225,8 +366,101 @@ class ShoppingList extends StatelessWidget {
                                   : Icons.radio_button_unchecked,
                               color: itemDone ? Colors.green : null,
                             ),
-                            onPressed: () {
-                              toggleDone(uid, itemId, itemDone);
+                            onPressed: () async {
+                              try {
+                                await toggleDone(uid, itemId, itemDone);
+
+                                if (!itemDone) {
+                                  // Show dialog to add expense when marking as done
+                                  // ignore: use_build_context_synchronously
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) {
+                                      final priceController =
+                                          TextEditingController(
+                                              text: price > 0
+                                                  ? price.toString()
+                                                  : '');
+                                      return AlertDialog(
+                                        title: const Text('Add as Expense?'),
+                                        content: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                                'Would you like to add "$itemName" as an expense?'),
+                                            const SizedBox(height: 16),
+                                            TextField(
+                                              controller: priceController,
+                                              decoration: const InputDecoration(
+                                                labelText: 'Price',
+                                                prefixText: '\$',
+                                              ),
+                                              keyboardType:
+                                                  TextInputType.number,
+                                            ),
+                                          ],
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () {
+                                              Navigator.pop(context);
+                                            },
+                                            child: const Text('No'),
+                                          ),
+                                          TextButton(
+                                            onPressed: () {
+                                              final expensePrice =
+                                                  double.tryParse(
+                                                          priceController
+                                                              .text) ??
+                                                      0.0;
+                                              if (expensePrice > 0) {
+                                                convertToExpense(uid, itemId,
+                                                    category, expensePrice);
+                                              }
+                                              Navigator.pop(context);
+                                            },
+                                            child: const Text('Yes'),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
+                                }
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      itemDone
+                                          ? 'Item marked incomplete'
+                                          : '✅ Item completed!',
+                                      style: const TextStyle(fontSize: 16),
+                                    ),
+                                    backgroundColor:
+                                        itemDone ? Colors.orange : Colors.green,
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(15),
+                                    ),
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: const Text(
+                                      'Something went wrong!',
+                                      style: TextStyle(fontSize: 16),
+                                    ),
+                                    backgroundColor: Colors.red,
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(15),
+                                    ),
+                                  ),
+                                );
+                                print('Error toggling shopping item: $e');
+                              }
                             },
                           ),
                           title: Text(
@@ -237,18 +471,26 @@ class ShoppingList extends StatelessWidget {
                                   : TextDecoration.none,
                             ),
                           ),
-                          subtitle: Text(
-                            unit.isNotEmpty
-                                ? (price > 0
-                                    ? '$quantity x $unit   \$${price.toStringAsFixed(2)}'
-                                    : '$quantity x $unit')
-                                : (price > 0
-                                    ? '$quantity   \$${price.toStringAsFixed(2)}'
-                                    : '$quantity'),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                unit.isNotEmpty
+                                    ? (price > 0
+                                        ? '$quantity x $unit   \$${price.toStringAsFixed(2)}'
+                                        : '$quantity x $unit')
+                                    : (price > 0
+                                        ? '$quantity   \$${price.toStringAsFixed(2)}'
+                                        : '$quantity'),
+                              ),
+                              Text(category,
+                                  style: TextStyle(
+                                      color: Colors.grey[600], fontSize: 12)),
+                            ],
                           ),
                           onTap: () {
                             showItemDetails(context, uid, itemId, itemName,
-                                quantity, unit, price);
+                                quantity, unit, price, category);
                           },
                         ),
                       );

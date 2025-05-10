@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:chore/household_members_screen.dart';
 import 'package:chore/ProfileScreen.dart';
+import 'package:chore/services/household_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -44,12 +45,11 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.blue[100],
-        title: Text(
-          'Home Page',
-          style: TextStyle(
-            color: Colors.blue[900],
-            fontWeight: FontWeight.bold,
-          ),
+        title: StreamBuilder<Widget>(
+          stream: HouseholdService.streamAppBarTitle(),
+          builder: (context, snapshot) {
+            return snapshot.data ?? const SizedBox();
+          },
         ),
         actions: [
           IconButton(

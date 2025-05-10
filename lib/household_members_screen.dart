@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:chore/services/household_service.dart';
 
 class HouseholdMembersScreen extends StatefulWidget {
   const HouseholdMembersScreen({super.key});
@@ -28,17 +29,11 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
 
   // Method to load household name from Firestore
   Future<void> _loadHouseholdName() async {
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      DocumentSnapshot snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      setState(() {
-        householdName = snapshot['householdName'] ?? '';
-        _householdNameController.text = householdName;
-      });
-    }
+    String name = await HouseholdService.getHouseholdName();
+    setState(() {
+      householdName = name;
+      _householdNameController.text = name;
+    });
   }
 
   // Method to fetch household members from Firestore
@@ -369,9 +364,31 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
                             style: TextStyle(color: Colors.grey[600])),
                       ),
                       ElevatedButton(
-                        onPressed: () {
-                          _updateHouseholdName();
-                          Navigator.pop(context);
+                        onPressed: () async {
+                          try {
+                            await HouseholdService.updateHouseholdName(
+                                _householdNameController.text);
+                            if (mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                      'Household name updated successfully'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                      'Failed to update household name: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue[900],

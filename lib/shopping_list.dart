@@ -197,10 +197,86 @@ class _ShoppingListState extends State<ShoppingList> {
                           ),
                           keyboardType:
                               TextInputType.numberWithOptions(decimal: true),
+                          autofocus: true,
                           onChanged: (value) {
                             final newPrice = double.tryParse(value);
                             updateDetails(currentCategory, newPrice);
                           },
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            Expanded(
+                              child: TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                style: TextButton.styleFrom(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    side: BorderSide(color: Colors.blue[900]!),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Close',
+                                  style: TextStyle(color: Colors.blue[900]),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  final expensePrice =
+                                      double.tryParse(priceController.text) ??
+                                          0.0;
+                                  if (expensePrice > 0) {
+                                    convertToExpense(uid, itemId,
+                                        currentCategory, expensePrice);
+                                    Navigator.pop(context);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content:
+                                            const Text('Added to expenses'),
+                                        backgroundColor: Colors.green,
+                                        behavior: SnackBarBehavior.floating,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(15),
+                                        ),
+                                      ),
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: const Text(
+                                            'Please enter a valid amount'),
+                                        backgroundColor: Colors.red,
+                                        behavior: SnackBarBehavior.floating,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(15),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue[900],
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Convert to Expense',
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -229,56 +305,6 @@ class _ShoppingListState extends State<ShoppingList> {
 
     // Delete the shopping list item
     await deleteItem(uid, itemId);
-  }
-
-  Future<void> showExpenseConversionDialog(BuildContext context, String uid,
-      String itemId, String itemName, String category) {
-    return showDialog(
-      context: context,
-      builder: (context) {
-        final priceController = TextEditingController();
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          title: Text(
-            'Add "$itemName" as Expense?',
-            style: TextStyle(color: Colors.blue[900]),
-          ),
-          content: TextField(
-            controller: priceController,
-            decoration: InputDecoration(
-              hintText: 'Enter amount',
-              prefixText: '\$',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              filled: true,
-              fillColor: Colors.grey[50],
-            ),
-            keyboardType: TextInputType.numberWithOptions(decimal: true),
-            autofocus: true,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('No'),
-            ),
-            TextButton(
-              onPressed: () {
-                final expensePrice =
-                    double.tryParse(priceController.text) ?? 0.0;
-                if (expensePrice > 0) {
-                  convertToExpense(uid, itemId, category, expensePrice);
-                }
-                Navigator.pop(context);
-              },
-              child: const Text('Yes'),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   @override
@@ -525,12 +551,18 @@ class _ShoppingListState extends State<ShoppingList> {
                                 onPressed: () async {
                                   try {
                                     await toggleDone(uid, itemId, itemDone);
-
                                     if (!itemDone) {
-                                      // Show dialog to add expense when marking as done
+                                      // Show item details dialog when marking as done
                                       // ignore: use_build_context_synchronously
-                                      showExpenseConversionDialog(context, uid,
-                                          itemId, itemName, category);
+                                      showItemDetails(
+                                          context,
+                                          uid,
+                                          itemId,
+                                          itemName,
+                                          quantity,
+                                          unit,
+                                          price,
+                                          category);
                                     }
 
                                     ScaffoldMessenger.of(context).showSnackBar(

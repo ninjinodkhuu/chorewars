@@ -183,16 +183,8 @@ class ShoppingList extends StatelessWidget {
       'timestamp': FieldValue.serverTimestamp(),
     });
 
-    // Update the item's price and mark it as converted to expense
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('shoppinglistinfohere')
-        .doc(itemId)
-        .update({
-      'price': price,
-      'convertedToExpense': true,
-    });
+    // Delete the shopping list item
+    await deleteItem(uid, itemId);
   }
 
   @override
@@ -200,53 +192,28 @@ class ShoppingList extends StatelessWidget {
     final TextEditingController itemController = TextEditingController();
     String selectedCategory = 'Food';
     final User? user = FirebaseAuth.instance.currentUser;
-    final String uid = user?.uid ?? '';    return Scaffold(
-      backgroundColor: Colors.blue[50],
+    final String uid = user?.uid ?? '';
+
+    return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.blue[100],
-        title: Text(
-          'Shopping List',
-          style: TextStyle(
-            color: Colors.blue[900],
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        title: const Text('Shopping List'),
       ),
-      body: Container(
-        padding: const EdgeInsets.all(16.0),
+      body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),              child: Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    children: [
-                      TextField(
-                        controller: itemController,
-                        decoration: InputDecoration(
-                          labelText: 'Enter item',
-                          labelStyle: TextStyle(color: Colors.blue[900]),
-                          focusedBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(color: Colors.blue[900]!),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        value: selectedCategory,
-                        decoration: InputDecoration(
-                          labelText: 'Category',
-                          labelStyle: TextStyle(color: Colors.blue[900]),
-                          focusedBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(color: Colors.blue[900]!),
-                          ),
-                        ),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: itemController,
+                    decoration: const InputDecoration(labelText: 'Enter item'),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: selectedCategory,
+                    decoration: const InputDecoration(labelText: 'Category'),
                     onChanged: (String? newValue) {
                       if (newValue != null) {
                         selectedCategory = newValue;
@@ -265,15 +232,8 @@ class ShoppingList extends StatelessWidget {
                       );
                     }).toList(),
                   ),
-                  const SizedBox(height: 16),                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[900],
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
                     onPressed: () {
                       if (uid.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -327,8 +287,9 @@ class ShoppingList extends StatelessWidget {
                         !data.containsKey('done') ||
                         !data['done'];
                   }).toList();
-                  final sortedItems = [...notDoneItems, ...doneItems];                  return ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  final sortedItems = [...notDoneItems, ...doneItems];
+
+                  return ListView.builder(
                     itemCount: sortedItems.length,
                     itemBuilder: (context, index) {
                       final item = sortedItems[index];

@@ -31,6 +31,8 @@ class Task {
   final DateTime? completedAt;
   final bool done;
   final String id;
+  final String status;
+
   factory Task.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     final dueDate = data['dueDate'];
@@ -78,6 +80,7 @@ class Task {
       completedAt:
           completedAt != null ? (completedAt as Timestamp).toDate() : null,
       done: done,
+      status: data['status'] ?? 'pending',
     );
   }
 
@@ -93,5 +96,6 @@ class Task {
     this.completedAt,
     this.done = false,
     this.id = '',
+    this.status = 'pending',
   });
 }

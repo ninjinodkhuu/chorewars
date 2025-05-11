@@ -45,14 +45,24 @@ class _HomeScreenState extends State<HomeScreen> {
     switch (_selectedFilter) {
       case TaskFilter.accepted:
         return tasks
-            .where((task) => task.acceptedAt != null && task.startedAt == null)
+            .where((task) =>
+                task.acceptedAt != null &&
+                task.startedAt == null &&
+                task.status != 'abandoned' &&
+                task.status != 'expired')
             .toList();
       case TaskFilter.inProgress:
         return tasks
-            .where((task) => task.startedAt != null && !task.done)
+            .where((task) =>
+                task.startedAt != null &&
+                !task.done &&
+                task.status != 'abandoned' &&
+                task.status != 'expired')
             .toList();
       case TaskFilter.completed:
-        return tasks.where((task) => task.done).toList();
+        return tasks
+            .where((task) => task.done || task.status == 'abandoned')
+            .toList();
     }
   }
 

@@ -1,7 +1,10 @@
+// Import required Flutter and Firebase packages
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+/// A widget that displays and manages the household shopping list
+/// Allows users to add, edit, delete, and mark items as complete
 class ShoppingList extends StatefulWidget {
   const ShoppingList({super.key});
 
@@ -10,6 +13,7 @@ class ShoppingList extends StatefulWidget {
 }
 
 class _ShoppingListState extends State<ShoppingList> {
+  // Controllers for user input
   final TextEditingController _itemController = TextEditingController();
   String _selectedCategory = 'Food';
 
@@ -17,6 +21,10 @@ class _ShoppingListState extends State<ShoppingList> {
   // Use Case 6.1: List Management Interface
   // ===========================
 
+  /// Adds a new item to the shopping list
+  /// @param uid: User ID for the current user
+  /// @param item: Name of the item to add
+  /// @param category: Category of the item (defaults to 'Food')
   Future<void> addItem(String uid, String item,
       {String category = 'Food'}) async {
     await FirebaseFirestore.instance
@@ -33,6 +41,10 @@ class _ShoppingListState extends State<ShoppingList> {
     });
   }
 
+  /// Toggles the completion status of a shopping list item
+  /// @param uid: User ID for the current user
+  /// @param itemId: ID of the item to toggle
+  /// @param currentStatus: Current completion status of the item
   Future<void> toggleDone(String uid, String itemId, bool currentStatus) async {
     await FirebaseFirestore.instance
         .collection('users')
@@ -42,6 +54,9 @@ class _ShoppingListState extends State<ShoppingList> {
         .update({'done': !currentStatus});
   }
 
+  /// Deletes an item from the shopping list
+  /// @param uid: User ID for the current user
+  /// @param itemId: ID of the item to delete
   Future<void> deleteItem(String uid, String itemId) async {
     await FirebaseFirestore.instance
         .collection('users')
@@ -51,6 +66,13 @@ class _ShoppingListState extends State<ShoppingList> {
         .delete();
   }
 
+  /// Updates the details of a shopping list item
+  /// @param uid: User ID for the current user
+  /// @param itemId: ID of the item to update
+  /// @param quantity: New quantity value
+  /// @param unit: New unit value
+  /// @param price: New price value
+  /// @param category: New category value
   Future<void> updateItemDetails(String uid, String itemId, int quantity,
       String unit, double price, String category) async {
     await FirebaseFirestore.instance
@@ -66,6 +88,15 @@ class _ShoppingListState extends State<ShoppingList> {
     });
   }
 
+  /// Shows a modal bottom sheet with item details and editing options
+  /// @param context: Build context for showing the modal
+  /// @param uid: User ID for the current user
+  /// @param itemId: ID of the item being edited
+  /// @param itemName: Name of the item
+  /// @param quantity: Current quantity
+  /// @param unit: Current unit
+  /// @param price: Current price
+  /// @param selectedCategory: Current category
   void showItemDetails(
       BuildContext context,
       String uid,
@@ -79,12 +110,14 @@ class _ShoppingListState extends State<ShoppingList> {
     final TextEditingController priceController =
         TextEditingController(text: price > 0 ? price.toString() : '');
 
+    /// Helper function to update item details
     void updateDetails(String category, double? newPrice) {
       if (newPrice != null) {
         updateItemDetails(uid, itemId, 1, '', newPrice, category);
       }
     }
 
+    // Show the modal bottom sheet with item details
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -290,9 +323,14 @@ class _ShoppingListState extends State<ShoppingList> {
     );
   }
 
+  /// Converts a shopping list item to an expense
+  /// @param uid: User ID for the current user
+  /// @param itemId: ID of the item to convert
+  /// @param category: Category for the expense
+  /// @param price: Amount of the expense
   Future<void> convertToExpense(
       String uid, String itemId, String category, double price) async {
-    // Add the expense
+    // Add the expense to expenses collection
     await FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
@@ -303,12 +341,13 @@ class _ShoppingListState extends State<ShoppingList> {
       'timestamp': FieldValue.serverTimestamp(),
     });
 
-    // Delete the shopping list item
+    // Remove item from shopping list
     await deleteItem(uid, itemId);
   }
 
   @override
   Widget build(BuildContext context) {
+    // Get current user ID
     final User? user = FirebaseAuth.instance.currentUser;
     final String uid = user?.uid ?? '';
 
@@ -327,10 +366,12 @@ class _ShoppingListState extends State<ShoppingList> {
       body: Center(
         child: Column(
           children: [
+            // Add Item Section
             Container(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
+                  // Input Card for new items
                   Card(
                     elevation: 2,
                     shape: RoundedRectangleBorder(
@@ -340,6 +381,7 @@ class _ShoppingListState extends State<ShoppingList> {
                       padding: const EdgeInsets.all(16.0),
                       child: Column(
                         children: [
+                          // Item name input field
                           TextField(
                             controller: _itemController,
                             decoration: InputDecoration(
@@ -352,6 +394,7 @@ class _ShoppingListState extends State<ShoppingList> {
                             ),
                           ),
                           const SizedBox(height: 16),
+                          // Category dropdown
                           Container(
                             decoration: BoxDecoration(
                               border: Border.all(color: Colors.grey[300]!),
@@ -383,6 +426,7 @@ class _ShoppingListState extends State<ShoppingList> {
                             ),
                           ),
                           const SizedBox(height: 16),
+                          // Add Item button
                           ElevatedButton(
                             onPressed: () {
                               if (uid.isEmpty) {
@@ -429,8 +473,10 @@ class _ShoppingListState extends State<ShoppingList> {
               ),
             ),
             const SizedBox(height: 16),
+            // Shopping List Items
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
+                // Listen to shopping list updates in real-time
                 stream: FirebaseFirestore.instance
                     .collection('users')
                     .doc(uid)
@@ -440,6 +486,8 @@ class _ShoppingListState extends State<ShoppingList> {
                   if (!snapshot.hasData) {
                     return const Center(child: CircularProgressIndicator());
                   }
+
+                  // Sort items by completion status
                   final items = snapshot.data!.docs;
                   final doneItems = items.where((item) {
                     final data = item.data() as Map<String, dynamic>;
@@ -453,6 +501,7 @@ class _ShoppingListState extends State<ShoppingList> {
                   }).toList();
                   final sortedItems = [...notDoneItems, ...doneItems];
 
+                  // Show empty state if no items
                   if (sortedItems.isEmpty) {
                     return Center(
                       child: Column(
@@ -484,10 +533,12 @@ class _ShoppingListState extends State<ShoppingList> {
                     );
                   }
 
+                  // List of shopping items
                   return ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: sortedItems.length,
                     itemBuilder: (context, index) {
+                      // Get item details
                       final item = sortedItems[index];
                       final itemId = item.id;
                       final itemName = item['item'];
@@ -503,6 +554,7 @@ class _ShoppingListState extends State<ShoppingList> {
                           ? data['category']
                           : 'Food';
 
+                      // Dismissible item card with delete functionality
                       return Dismissible(
                         key: Key(itemId),
                         direction: DismissDirection.endToStart,

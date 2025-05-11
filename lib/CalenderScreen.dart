@@ -172,6 +172,36 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }).toList();
   }
 
+  /// Checks if a task has expired (more than 7 days since acceptance)
+  bool _isTaskExpired(Task task) {
+    if (task.acceptedAt == null || task.done) return false;
+    final DateTime now = DateTime.now();
+    final DateTime expiryDate = task.acceptedAt!.add(const Duration(days: 7));
+    return now.isAfter(expiryDate);
+  }
+
+  /// Handles expired task by marking it as incomplete
+  Future<void> _handleExpiredTask(String householdId, Task task) async {
+    if (_isTaskExpired(task) && !task.done) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('households')
+            .doc(householdId)
+            .collection('members')
+            .doc(user.uid)
+            .collection('tasks')
+            .doc(task.id)
+            .update({
+          'done': false,
+          'status': 'expired',
+          'expired_at': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        print('Error handling expired task: $e');
+      }
+    }
+  }
+
   Stream<List<Task>> _getTasksStream() async* {
     String householdId = await _getHouseholdId();
 
@@ -183,65 +213,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
         .collection('tasks')
         .snapshots()) {
       List<Task> tasks = snapshot.docs.map((doc) {
-        var data = doc.data();
-        final dueDate = data['dueDate'];
-        final acceptedAt = data['acceptedAt'];
-        final startedAt = data['startedAt'];
-        final completedAt = data['completed_at'];
-        final bool done = data['done'] ?? false;
+        Task task = Task.fromFirestore(doc);
 
-        // Default to veryEasy if no difficulty is specified
-        TaskDifficulty difficulty = TaskDifficulty.veryEasy;
+        // Check and handle expired tasks
+        _handleExpiredTask(householdId, task);
 
-        // Try to determine difficulty from the data
-        if (data['difficulty'] != null) {
-          String difficultyStr =
-              data['difficulty'].toString().toLowerCase().trim();
-          try {
-            difficulty = TaskDifficulty.values.firstWhere(
-              (d) => d.name.toLowerCase() == difficultyStr,
-              orElse: () => TaskDifficulty.veryEasy,
-            );
-          } catch (e) {
-            print('Error parsing difficulty string: $e');
-          }
-        } else if (data['points'] != null) {
-          try {
-            int points = (data['points'] is num)
-                ? (data['points'] as num).toInt()
-                : int.tryParse(data['points'].toString()) ?? 1;
-            difficulty = TaskDifficulty.fromValue(points);
-          } catch (e) {
-            print('Error parsing points: $e');
-          }
-        }
-
-        return Task(
-          id: doc.id,
-          category: data['category'] ?? '',
-          name: data['name'] ?? '',
-          date: dueDate != null
-              ? (dueDate as Timestamp).toDate()
-              : DateTime.now(),
-          difficulty: difficulty,
-          timeEstimateMinutes: data['timeEstimate'] ?? 0,
-          assignedTo: data['assignedTo'],
-          acceptedAt:
-              acceptedAt != null ? (acceptedAt as Timestamp).toDate() : null,
-          startedAt:
-              startedAt != null ? (startedAt as Timestamp).toDate() : null,
-          completedAt:
-              completedAt != null ? (completedAt as Timestamp).toDate() : null,
-          done: done,
-        );
+        return task;
       }).toList();
       yield tasks;
     }
   }
 
   List<Task> _filterTasksForDay(List<Task> tasks, DateTime day) {
-    // Always show tasks on their due date, regardless of completion status
-    return tasks.where((task) => isSameDay(task.date, day)).toList();
+    // Show tasks on their due date, excluding abandoned tasks
+    return tasks
+        .where(
+            (task) => isSameDay(task.date, day) && task.status != 'abandoned')
+        .toList();
   }
 
   void _showAddTaskDialog() async {
@@ -522,6 +510,80 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
+  /// Shows a confirmation dialog before abandoning a task
+  void _showAbandonTaskDialog(Task task) async {
+    String householdId = await _householdIdFuture;
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Abandon Task'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to abandon "${task.name}"?',
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'This will count as an incomplete task and affect your stats.',
+              style: TextStyle(
+                color: Colors.red,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await TaskService.abandonTask(
+                  householdId: householdId,
+                  memberId: user.uid,
+                  taskId: task.id,
+                );
+
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Task abandoned'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error abandoning task: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Abandon Task'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final DateFormat formatter = DateFormat('MMMM d, yyyy');
@@ -663,15 +725,25 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     String taskStatus;
                     Color statusColor;
 
-                    if (task.done) {
+                    if (task.status == 'abandoned') {
+                      taskStatus = 'Abandoned';
+                      statusColor = Colors.red;
+                    } else if (_isTaskExpired(task)) {
+                      taskStatus = 'Expired';
+                      statusColor = Colors.red;
+                    } else if (task.done) {
                       taskStatus = 'Completed';
                       statusColor = Colors.green;
                     } else if (task.startedAt != null) {
                       taskStatus = 'In Progress';
                       statusColor = Colors.blue;
                     } else if (task.acceptedAt != null) {
-                      taskStatus = 'Accepted';
-                      statusColor = Colors.orange;
+                      // Calculate days remaining
+                      int daysRemaining = 7 -
+                          DateTime.now().difference(task.acceptedAt!).inDays;
+                      taskStatus = 'Accepted ($daysRemaining days left)';
+                      statusColor =
+                          daysRemaining <= 2 ? Colors.orange : Colors.blue;
                     } else {
                       taskStatus = 'Pending';
                       statusColor = Colors.grey;
@@ -754,7 +826,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.end,
                               children: [
-                                if (!task.done) ...[
+                                if (!task.done &&
+                                    task.status != 'abandoned' &&
+                                    task.status != 'expired') ...[
                                   if (task.acceptedAt == null)
                                     ElevatedButton.icon(
                                       icon: const Icon(Icons.check, size: 16),
@@ -795,7 +869,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                         foregroundColor: Colors.white,
                                       ),
                                     )
-                                  else if (task.startedAt == null)
+                                  else if (task.startedAt == null) ...[
                                     ElevatedButton.icon(
                                       icon: const Icon(Icons.play_arrow,
                                           size: 16),
@@ -835,8 +909,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                         backgroundColor: Colors.blue,
                                         foregroundColor: Colors.white,
                                       ),
-                                    )
-                                  else
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ElevatedButton.icon(
+                                      icon: const Icon(Icons.cancel_outlined,
+                                          size: 16),
+                                      label: const Text('Abandon'),
+                                      onPressed: () =>
+                                          _showAbandonTaskDialog(task),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.red,
+                                        foregroundColor: Colors.white,
+                                      ),
+                                    ),
+                                  ] else ...[
                                     ElevatedButton.icon(
                                       icon:
                                           const Icon(Icons.done_all, size: 16),
@@ -849,7 +935,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                         foregroundColor: Colors.white,
                                       ),
                                     ),
-                                ]
+                                    const SizedBox(width: 8),
+                                    ElevatedButton.icon(
+                                      icon: const Icon(Icons.cancel_outlined,
+                                          size: 16),
+                                      label: const Text('Abandon'),
+                                      onPressed: () =>
+                                          _showAbandonTaskDialog(task),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.red,
+                                        foregroundColor: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ],
                             ),
                           ),

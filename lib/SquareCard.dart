@@ -9,13 +9,16 @@ class SquareCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final DateFormat formatter = DateFormat('MMMM d, yyyy');
     final String formattedDate = formatter.format(task.date);
+    final bool isAbandoned = task.status == 'abandoned';
+    final Color cardColor = isAbandoned ? Colors.grey[400]! : Colors.blue[900]!;
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Container(
         width: 200, // Fixed width for a square card
         height: 200, // Fixed height for a square card
         decoration: BoxDecoration(
-          color: Colors.blue[900],
+          color: cardColor,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -40,24 +43,25 @@ class SquareCard extends StatelessWidget {
                     width: 40, // Fixed width for the square box
                     height: 40, // Fixed height for the square box
                     decoration: BoxDecoration(
-                      color: Colors.blue[600], // Fill color for the box
-                      borderRadius:
-                          BorderRadius.circular(8), // Optional: Rounded corners
+                      color: isAbandoned
+                          ? Colors.grey[500]
+                          : Colors.blue[600], // Fill color for the box
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Center(
                       child: Text(
                         '🧹',
-                        style: TextStyle(fontSize: 20), // Emoji size
+                        style: TextStyle(fontSize: 20),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Text(
                     task.category,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: isAbandoned ? Colors.grey[300] : Colors.white,
                     ),
                   ),
                 ],
@@ -66,10 +70,10 @@ class SquareCard extends StatelessWidget {
             // Middle text
             Text(
               task.name,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: isAbandoned ? Colors.grey[300] : Colors.white,
               ),
               textAlign: TextAlign.left,
             ),
@@ -80,7 +84,7 @@ class SquareCard extends StatelessWidget {
                 formattedDate,
                 style: TextStyle(
                   fontSize: 12,
-                  color: Colors.grey[300],
+                  color: isAbandoned ? Colors.grey[400] : Colors.grey[300],
                 ),
                 textAlign: TextAlign.left,
               ),

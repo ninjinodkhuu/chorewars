@@ -222,8 +222,9 @@ class TaskService {
     required String taskId,
   }) async {
     try {
+      // Update the task with acceptance time and 7-day expiration date
       await _firestore
-          .collection('households') // Changed from 'household' to 'households'
+          .collection('households')
           .doc(householdId)
           .collection('members')
           .doc(memberId)
@@ -231,6 +232,10 @@ class TaskService {
           .doc(taskId)
           .update({
         'acceptedAt': FieldValue.serverTimestamp(),
+        'status': 'accepted',
+        'expiryDate': Timestamp.fromDate(
+          DateTime.now().add(const Duration(days: 7)),
+        ),
       });
     } catch (e) {
       print('Error accepting task: $e');
@@ -256,6 +261,114 @@ class TaskService {
       });
     } catch (e) {
       print('Error starting task: $e');
+      rethrow;
+    }
+  }
+
+  /// Marks a task as expired and updates relevant statistics
+  static Future<void> expireTask({
+    required String householdId,
+    required String memberId,
+    required String taskId,
+  }) async {
+    try {
+      // Get the member document to update their stats
+      DocumentSnapshot memberDoc = await _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('members')
+          .doc(memberId)
+          .get();
+
+      // Get current stats, defaulting to 0 if not set
+      Map<String, dynamic> memberData =
+          memberDoc.exists ? memberDoc.data() as Map<String, dynamic> : {};
+      int totalTasks = memberData['totalTasks'] ?? 0;
+      int expiredTasks = memberData['expiredTasks'] ?? 0;
+
+      // Update the member's stats
+      await _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('members')
+          .doc(memberId)
+          .set({
+        'totalTasks': totalTasks + 1,
+        'expiredTasks': expiredTasks + 1,
+      }, SetOptions(merge: true));
+
+      // Update the task
+      await _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('members')
+          .doc(memberId)
+          .collection('tasks')
+          .doc(taskId)
+          .update({
+        'done': false,
+        'status': 'expired',
+        'expired_at': FieldValue.serverTimestamp(),
+      });
+
+      // Update household stats
+      await updateHouseholdStats(householdId);
+    } catch (e) {
+      print('Error expiring task: $e');
+      rethrow;
+    }
+  }
+
+  /// Abandons a task and marks it as incomplete
+  static Future<void> abandonTask({
+    required String householdId,
+    required String memberId,
+    required String taskId,
+  }) async {
+    try {
+      // Get the member document to update their stats
+      DocumentSnapshot memberDoc = await _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('members')
+          .doc(memberId)
+          .get();
+
+      // Get current stats, defaulting to 0 if not set
+      Map<String, dynamic> memberData =
+          memberDoc.exists ? memberDoc.data() as Map<String, dynamic> : {};
+      int totalTasks = memberData['totalTasks'] ?? 0;
+      int abandonedTasks = memberData['abandonedTasks'] ?? 0;
+
+      // Update the member's stats
+      await _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('members')
+          .doc(memberId)
+          .set({
+        'totalTasks': totalTasks + 1,
+        'abandonedTasks': abandonedTasks + 1,
+      }, SetOptions(merge: true));
+
+      // Update the task status
+      await _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('members')
+          .doc(memberId)
+          .collection('tasks')
+          .doc(taskId)
+          .update({
+        'done': false,
+        'status': 'abandoned',
+        'abandoned_at': FieldValue.serverTimestamp(),
+      });
+
+      // Update household stats
+      await updateHouseholdStats(householdId);
+    } catch (e) {
+      print('Error abandoning task: $e');
       rethrow;
     }
   }

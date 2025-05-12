@@ -23,6 +23,50 @@ class Gamification extends StatelessWidget {
     return '';
   }
 
+  Future<Stream<QuerySnapshot>> _getMembersStream(String householdId) async {
+    // First ensure all members have email field
+    final membersSnapshot = await FirebaseFirestore.instance
+        .collection('households')
+        .doc(householdId)
+        .collection('members')
+        .get();
+
+    // For each member without an email, look it up and update it
+    for (var memberDoc in membersSnapshot.docs) {
+      if (!memberDoc.data().containsKey('email') ||
+          memberDoc.data()['email'] == null) {
+        // Get user document to get email
+        DocumentSnapshot userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(memberDoc.id)
+            .get();
+
+        if (userDoc.exists) {
+          String? email = userDoc.get('email') as String?;
+          if (email != null) {
+            // Update member document with email
+            await FirebaseFirestore.instance
+                .collection('households')
+                .doc(householdId)
+                .collection('members')
+                .doc(memberDoc.id)
+                .set({
+              'email': email,
+            }, SetOptions(merge: true));
+          }
+        }
+      }
+    }
+
+    // Return stream of members
+    return FirebaseFirestore.instance
+        .collection('households')
+        .doc(householdId)
+        .collection('members')
+        .orderBy('totalPoints', descending: true)
+        .snapshots();
+  }
+
   // Optimized method to fetch household stats
   Stream<Map<String, dynamic>> streamHouseholdStats(String householdID) {
     // Trigger an update of household stats when this page is viewed
@@ -149,175 +193,36 @@ class Gamification extends StatelessWidget {
             elevation: 0,
           ),
           body: SingleChildScrollView(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('households') // Fixed collection name
-                  .doc(householdID)
-                  .collection('members')
-                  .orderBy('totalPoints', descending: true)
-                  .snapshots(),
-              builder: (context, membersSnapshot) {
-                if (membersSnapshot.connectionState ==
-                    ConnectionState.waiting) {
+            child: FutureBuilder<Stream<QuerySnapshot>>(
+              future: _getMembersStream(householdID),
+              builder: (context, streamSnapshot) {
+                if (streamSnapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                if (!membersSnapshot.hasData ||
-                    membersSnapshot.data!.docs.isEmpty) {
+                if (!streamSnapshot.hasData) {
                   return const Center(child: Text('No members found'));
                 }
 
-                final users = membersSnapshot.data!.docs;
+                return StreamBuilder<QuerySnapshot>(
+                  stream: streamSnapshot.data!,
+                  builder: (context, membersSnapshot) {
+                    if (membersSnapshot.connectionState ==
+                        ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (!membersSnapshot.hasData ||
+                        membersSnapshot.data!.docs.isEmpty) {
+                      return const Center(child: Text('No members found'));
+                    }
 
-                return Column(
-                  children: [
-                    // Leaderboard Container
-                    Container(
-                      margin: const EdgeInsets.only(
-                          left: 16, right: 16, top: 16, bottom: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 6,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          // Custom Header Row
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 12, horizontal: 16),
-                            decoration: BoxDecoration(
-                              color: Colors.blue[900],
-                              borderRadius: const BorderRadius.only(
-                                topLeft: Radius.circular(16),
-                                topRight: Radius.circular(16),
-                              ),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                'Leaderboard',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 25,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                          // Leaderboard List
-                          ListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: users.length,
-                            itemBuilder: (context, index) {
-                              final userData =
-                                  users[index].data() as Map<String, dynamic>;
-                              final memberID = users[index].id;
-                              final name = userData['name'] ?? 'Unknown';
-                              final totalPoints = userData['totalPoints'] ?? 0;
-                              final rank = index + 1;
+                    final users = membersSnapshot.data!.docs;
 
-                              return Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  border: Border(
-                                    bottom: index == users.length - 1
-                                        ? BorderSide.none
-                                        : BorderSide(
-                                            color: Colors.grey[300]!,
-                                            width: 1,
-                                          ),
-                                  ),
-                                ),
-                                child: ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 12),
-                                  leading: CircleAvatar(
-                                    radius: 20,
-                                    backgroundColor: rank == 1
-                                        ? Colors.amber
-                                        : rank == 2
-                                            ? Colors.grey[400]
-                                            : rank == 3
-                                                ? Colors.brown[300]
-                                                : Colors.blue[200],
-                                    child: Text(
-                                      '$rank',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                  title: Row(
-                                    children: [
-                                      Text(
-                                        name,
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 13),
-                                      Text(
-                                        '$totalPoints points',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  trailing: IconButton(
-                                    icon: const Icon(Icons.arrow_forward_ios,
-                                        size: 20),
-                                    onPressed: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => TaskHistory(
-                                            memberID: memberID,
-                                            householdID: householdID,
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Analytical Insights Container
-                    StreamBuilder<Map<String, dynamic>>(
-                      stream: streamHouseholdStats(householdID),
-                      builder: (context, statsSnapshot) {
-                        if (statsSnapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                              child: CircularProgressIndicator());
-                        }
-
-                        final stats = statsSnapshot.data ??
-                            {
-                              'completionRate': 0.0,
-                              'avgPoints': 0.0,
-                              'avgTimeMinutes': 0,
-                            };
-
-                        return Container(
-                          margin: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
-                          padding: const EdgeInsets.all(16),
+                    return Column(
+                      children: [
+                        // Leaderboard Container
+                        Container(
+                          margin: const EdgeInsets.only(
+                              left: 16, right: 16, top: 16, bottom: 8),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(16),
@@ -330,50 +235,204 @@ class Gamification extends StatelessWidget {
                             ],
                           ),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Analytical Insights',
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.blue,
+                              // Custom Header Row
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 12, horizontal: 16),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue[900],
+                                  borderRadius: const BorderRadius.only(
+                                    topLeft: Radius.circular(16),
+                                    topRight: Radius.circular(16),
+                                  ),
+                                ),
+                                child: const Center(
+                                  child: Text(
+                                    'Leaderboard',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 25,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 16),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  _buildInsightCard(
-                                    icon: Icons.check_circle,
-                                    color: Colors.green,
-                                    label: 'Completion Rate',
-                                    value:
-                                        '${(stats['completionRate'] as double).toStringAsFixed(1)}%',
-                                  ),
-                                  _buildInsightCard(
-                                    icon: Icons.trending_up,
-                                    color: Colors.orange,
-                                    label: 'Avg. Points',
-                                    value: (stats['avgPoints'] as double)
-                                        .toStringAsFixed(1),
-                                  ),
-                                  _buildInsightCard(
-                                    icon: Icons.timer,
-                                    color: Colors.purple,
-                                    label: 'Avg. Time',
-                                    value:
-                                        '${(stats['avgTimeMinutes'] as num).toInt()}m',
-                                  ),
-                                ],
+                              // Leaderboard List
+                              ListView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: users.length,
+                                itemBuilder: (context, index) {
+                                  final userData = users[index].data()
+                                      as Map<String, dynamic>;
+                                  final memberID = users[index].id;
+                                  final name = userData['email'] ??
+                                      userData['name'] ??
+                                      'Unknown';
+                                  final totalPoints =
+                                      userData['totalPoints'] ?? 0;
+                                  final rank = index + 1;
+
+                                  return Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      border: Border(
+                                        bottom: index == users.length - 1
+                                            ? BorderSide.none
+                                            : BorderSide(
+                                                color: Colors.grey[300]!,
+                                                width: 1,
+                                              ),
+                                      ),
+                                    ),
+                                    child: ListTile(
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                              horizontal: 16, vertical: 12),
+                                      leading: CircleAvatar(
+                                        radius: 20,
+                                        backgroundColor: rank == 1
+                                            ? Colors.amber
+                                            : rank == 2
+                                                ? Colors.grey[400]
+                                                : rank == 3
+                                                    ? Colors.brown[300]
+                                                    : Colors.blue[200],
+                                        child: Text(
+                                          '$rank',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                      title: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              name,
+                                              style: const TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            '$totalPoints points',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      trailing: IconButton(
+                                        icon: const Icon(
+                                            Icons.arrow_forward_ios,
+                                            size: 20),
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => TaskHistory(
+                                                memberID: memberID,
+                                                householdID: householdID,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
                             ],
                           ),
-                        );
-                      },
-                    ),
-                  ],
+                        ),
+
+                        // Analytical Insights Container
+                        StreamBuilder<Map<String, dynamic>>(
+                          stream: streamHouseholdStats(householdID),
+                          builder: (context, statsSnapshot) {
+                            if (statsSnapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return const Center(
+                                  child: CircularProgressIndicator());
+                            }
+
+                            final stats = statsSnapshot.data ??
+                                {
+                                  'completionRate': 0.0,
+                                  'avgPoints': 0.0,
+                                  'avgTimeMinutes': 0,
+                                };
+
+                            return Container(
+                              margin: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 6,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Analytical Insights',
+                                    style: TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.blue,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      _buildInsightCard(
+                                        icon: Icons.check_circle,
+                                        color: Colors.green,
+                                        label: 'Completion Rate',
+                                        value:
+                                            '${(stats['completionRate'] as double).toStringAsFixed(1)}%',
+                                      ),
+                                      _buildInsightCard(
+                                        icon: Icons.trending_up,
+                                        color: Colors.orange,
+                                        label: 'Avg. Points',
+                                        value: (stats['avgPoints'] as double)
+                                            .toStringAsFixed(1),
+                                      ),
+                                      _buildInsightCard(
+                                        icon: Icons.timer,
+                                        color: Colors.purple,
+                                        label: 'Avg. Time',
+                                        value:
+                                            '${(stats['avgTimeMinutes'] as num).toInt()}m',
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    );
+                  },
                 );
               },
             ),

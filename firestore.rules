@@ -1,0 +1,110 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isUserAuthenticated(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function isHouseholdMember(householdId) {
+      return isAuthenticated() && getUserData().householdID == householdId;
+    }
+
+    function isHouseholdAdmin(householdId) {
+      let userData = getUserData();
+      return isHouseholdMember(householdId) && userData.role == 'admin';
+    }
+
+    function isValidExpense() {
+      let data = request.resource.data;
+      return data.amount is number && 
+             data.amount >= 0 && 
+             data.categoryId is string &&
+             data.date is timestamp;
+    }
+
+    function isValidCategory() {
+      let data = request.resource.data;
+      return data.name is string && 
+             data.name.size() > 0 &&
+             data.color is number;
+    }
+
+    function isValidTask() {
+      let data = request.resource.data;
+      return data.name is string && 
+             data.name.size() > 0 &&
+             data.difficulty is string &&
+             data.timeEstimateMinutes is number &&
+             data.timeEstimateMinutes > 0;
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      allow read: if isUserAuthenticated(userId);
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isUserAuthenticated(userId);
+      
+      // User expenses subcollection
+      match /expenses/{expenseId} {
+        allow read: if isUserAuthenticated(userId);
+        allow create: if isUserAuthenticated(userId) && isValidExpense();
+        allow update: if isUserAuthenticated(userId) && isValidExpense();
+        allow delete: if isUserAuthenticated(userId);
+      }
+    }
+    
+    // Households collection
+    match /households/{householdId} {
+      allow read: if isHouseholdMember(householdId);
+      allow create: if isAuthenticated();
+      allow update: if isHouseholdAdmin(householdId);
+      allow delete: if isHouseholdAdmin(householdId);
+      
+      // Categories subcollection
+      match /categories/{categoryId} {
+        allow read: if isHouseholdMember(householdId);
+        allow create: if isHouseholdAdmin(householdId) && isValidCategory();
+        allow update: if isHouseholdAdmin(householdId) && isValidCategory();
+        allow delete: if isHouseholdAdmin(householdId);
+      }
+      
+      // Members subcollection
+      match /members/{memberId} {
+        allow read: if isHouseholdMember(householdId);
+        allow create: if isHouseholdAdmin(householdId);
+        allow update: if isHouseholdAdmin(householdId) || request.auth.uid == memberId;
+        allow delete: if isHouseholdAdmin(householdId);
+        
+        // Tasks subcollection
+        match /tasks/{taskId} {
+          allow read: if isHouseholdMember(householdId);
+          allow create: if isHouseholdMember(householdId) && isValidTask();
+          allow update: if isHouseholdMember(householdId) && 
+            ((resource.data.assignedTo == request.auth.uid) || isHouseholdAdmin(householdId));
+          allow delete: if isHouseholdAdmin(householdId);
+        }
+      }
+      
+      // Shopping list subcollection
+      match /shopping_list/{itemId} {
+        allow read: if isHouseholdMember(householdId);
+        allow write: if isHouseholdMember(householdId);
+      }
+
+      // Reports subcollection
+      match /reports/{reportId} {
+        allow read: if isHouseholdMember(householdId);
+        allow write: if false; // Only cloud functions can write reports
+      }
+    }
+  }
+}

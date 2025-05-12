@@ -1,5 +1,6 @@
 {
     "FSharp.suggestGitignore": false,
     "java.compile.nullAnalysis.mode": "automatic",
-    "cmake.sourceDirectory": "C:/Users/daryl/OneDrive/Desktop/chore_wars_ultimate/linux"
+    "cmake.sourceDirectory": "C:/Users/daryl/OneDrive/Desktop/chore_wars_ultimate/linux",
+    "java.configuration.updateBuildConfiguration": "automatic"
 }

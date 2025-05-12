@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'household_members_screen.dart';
 import '/ProfileScreen.dart';
 import 'services/household_service.dart';
+import 'package:chore/widgets/household_button.dart';
 
 /// Main home page of the application
 /// Contains bottom navigation and manages different screens
@@ -62,10 +63,12 @@ class _HomePageState extends State<HomePage> {
           },
         ),
         actions: [
-          // Household members button
-          IconButton(
-            icon: const Icon(Icons.group),
-            onPressed: () => viewHouseholdMembers(context),
+          // Household button with notification dot
+          SizedBox(
+            width: 56, // Match IconButton width
+            child: HouseholdButton(
+              onPressed: () => viewHouseholdMembers(context),
+            ),
           ),
           // Chat button
           IconButton(

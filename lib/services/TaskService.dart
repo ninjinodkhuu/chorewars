@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../Data/Task.dart';
+import '../local_notifications.dart';
 
 class TaskService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -31,34 +32,7 @@ class TaskService {
         throw Exception('Task is already completed');
       }
 
-      // Get the member document to update their stats
-      DocumentSnapshot memberDoc = await _firestore
-          .collection('households')
-          .doc(householdId)
-          .collection('members')
-          .doc(memberId)
-          .get();
-
-      // Get current stats, defaulting to 0 if not set
-      Map<String, dynamic> memberData =
-          memberDoc.exists ? memberDoc.data() as Map<String, dynamic> : {};
-      int currentPoints = memberData['totalPoints'] ?? 0;
-      int completedTasks = memberData['completedTasks'] ?? 0;
-      int totalTasks = memberData['totalTasks'] ?? 0;
-
-      // Update the member's stats
-      await _firestore
-          .collection('households')
-          .doc(householdId)
-          .collection('members')
-          .doc(memberId)
-          .set({
-        'totalPoints': currentPoints + points,
-        'completedTasks': completedTasks + 1,
-        'totalTasks': totalTasks + 1,
-      }, SetOptions(merge: true));
-
-      // Update the task
+      // Update task status
       await _firestore
           .collection('households')
           .doc(householdId)
@@ -72,6 +46,19 @@ class TaskService {
         'points': points,
         'timeSpent': timeSpentMinutes,
       });
+
+      // Send completion notifications
+      await LocalNotificationService.sendTaskNotification(
+        title: 'Task Completed',
+        body: 'Task "${taskData['name']}" was completed successfully!',
+        payload: 'task_completed_$taskId',
+      );
+
+      // Send points notification
+      await LocalNotificationService.sendTaskPointsNotification(
+        taskData['name'],
+        points,
+      );
 
       // Update household stats
       await updateHouseholdStats(householdId);
@@ -272,6 +259,40 @@ class TaskService {
     required String taskId,
   }) async {
     try {
+      final taskDoc = await _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('members')
+          .doc(memberId)
+          .collection('tasks')
+          .doc(taskId)
+          .get();
+
+      if (!taskDoc.exists) {
+        throw Exception('Task not found');
+      }
+
+      final taskData = taskDoc.data()!;
+
+      await _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('members')
+          .doc(memberId)
+          .collection('tasks')
+          .doc(taskId)
+          .update({
+        'status': 'expired',
+        'expired_at': FieldValue.serverTimestamp(),
+      });
+
+      // Send expiration notification
+      await LocalNotificationService.sendTaskNotification(
+        title: 'Task Expired',
+        body: 'Task "${taskData['name']}" has expired',
+        payload: 'task_expired_$taskId',
+      );
+
       // Get the member document to update their stats
       DocumentSnapshot memberDoc = await _firestore
           .collection('households')
@@ -297,20 +318,6 @@ class TaskService {
         'expiredTasks': expiredTasks + 1,
       }, SetOptions(merge: true));
 
-      // Update the task
-      await _firestore
-          .collection('households')
-          .doc(householdId)
-          .collection('members')
-          .doc(memberId)
-          .collection('tasks')
-          .doc(taskId)
-          .update({
-        'done': false,
-        'status': 'expired',
-        'expired_at': FieldValue.serverTimestamp(),
-      });
-
       // Update household stats
       await updateHouseholdStats(householdId);
     } catch (e) {
@@ -326,6 +333,36 @@ class TaskService {
     required String taskId,
   }) async {
     try {
+      final taskDoc = await _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('members')
+          .doc(memberId)
+          .collection('tasks')
+          .doc(taskId)
+          .get();
+
+      final taskData = taskDoc.data()!;
+
+      await _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('members')
+          .doc(memberId)
+          .collection('tasks')
+          .doc(taskId)
+          .update({
+        'status': 'abandoned',
+        'abandoned_at': FieldValue.serverTimestamp(),
+      });
+
+      // Send abandonment notification
+      await LocalNotificationService.sendTaskNotification(
+        title: 'Task Abandoned',
+        body: 'Task "${taskData['name']}" was abandoned',
+        payload: 'task_abandoned_$taskId',
+      );
+
       // Get the member document to update their stats
       DocumentSnapshot memberDoc = await _firestore
           .collection('households')
@@ -350,20 +387,6 @@ class TaskService {
         'totalTasks': totalTasks + 1,
         'abandonedTasks': abandonedTasks + 1,
       }, SetOptions(merge: true));
-
-      // Update the task status
-      await _firestore
-          .collection('households')
-          .doc(householdId)
-          .collection('members')
-          .doc(memberId)
-          .collection('tasks')
-          .doc(taskId)
-          .update({
-        'done': false,
-        'status': 'abandoned',
-        'abandoned_at': FieldValue.serverTimestamp(),
-      });
 
       // Update household stats
       await updateHouseholdStats(householdId);

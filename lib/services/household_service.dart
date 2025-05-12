@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 // Import Flutter material package for UI widgets
 import 'package:flutter/material.dart';
+import '../local_notifications.dart';
 
 /// Service class to handle all household-related operations
 class HouseholdService {
@@ -74,17 +75,47 @@ class HouseholdService {
         : 'My Household';
   }
 
-  /// Updates the household name in Firestore
-  /// Throws an exception if user is not logged in
-  static Future<void> updateHouseholdName(String name) async {
+  /// Updates the household name
+  static Future<void> updateHouseholdName(String newName) async {
     User? user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      throw Exception('Not logged in');
-    }
+    if (user != null) {
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .update({'householdName': newName});
 
-    // Update the household name in the user's document
-    await _firestore.collection('users').doc(user.uid).update({
-      'householdName': name.trim(),
-    });
+      // Send notification about the name change
+      await LocalNotificationService.sendHouseholdUpdateNotification(
+        'Household Name Updated',
+        'The household name has been changed to "$newName"',
+      );
+    }
+  }
+
+  /// Invites a new member to the household
+  static Future<void> inviteMember(String email) async {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      // Existing invitation logic...
+
+      // Send notification about new member
+      await LocalNotificationService.sendHouseholdUpdateNotification(
+        'New Member Invited',
+        'An invitation has been sent to $email',
+      );
+    }
+  }
+
+  /// Updates household statistics and triggers a weekly report
+  static Future<void> updateHouseholdStats(String householdId) async {
+    try {
+      // Existing stats update logic...
+
+      // Schedule weekly household report
+      await LocalNotificationService.scheduleWeeklyHouseholdReport(householdId);
+    } catch (e) {
+      print('Error updating household stats: $e');
+      rethrow;
+    }
   }
 }

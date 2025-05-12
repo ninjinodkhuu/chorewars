@@ -1,8 +1,9 @@
-import 'package:chore/Data/Task.dart';
-import 'package:chore/SquareCard.dart';
+import 'Data/Task.dart';
+import 'SquareCard.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'local_notifications.dart';
 
 enum TaskFilter { accepted, inProgress, completed }
 
@@ -16,6 +17,29 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final user = FirebaseAuth.instance.currentUser!;
   TaskFilter _selectedFilter = TaskFilter.accepted;
+  String? householdID;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchHouseholdID();
+    // Initialize notifications
+    LocalNotificationService.initialize();
+  }
+
+  // Load householdID
+  Future<void> _fetchHouseholdID() async {
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+    
+    if (userDoc.exists) {
+      setState(() {
+        householdID = userDoc.get('household_id');
+      });
+    }
+  }
 
   Stream<List<Task>> _getTasksStream() async* {
     String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -34,10 +58,41 @@ class _HomeScreenState extends State<HomeScreen> {
           .snapshots()) {
         List<Task> tasks =
             snapshot.docs.map((doc) => Task.fromFirestore(doc)).toList();
+        // Send notifications for task updates
+        _handleTaskUpdates(tasks);
         yield tasks;
       }
     } else {
       yield [];
+    }
+  }
+
+  void _handleTaskUpdates(List<Task> tasks) {
+    for (var task in tasks) {
+      // Notify when task is completed
+      if (task.done && task.completedAt != null) {
+        LocalNotificationService.sendTaskNotification(
+          title: "Task Completed",
+          body: "The task '${task.name}' has been completed!",
+          payload: task.id,
+        );
+      }
+      // Notify when task is started
+      else if (task.startedAt != null && !task.done) {
+        LocalNotificationService.sendTaskNotification(
+          title: "Task Started",
+          body: "Work has begun on '${task.name}'",
+          payload: task.id,
+        );
+      }
+      // Notify when task is accepted
+      else if (task.acceptedAt != null && task.startedAt == null) {
+        LocalNotificationService.sendTaskNotification(
+          title: "New Task Accepted",
+          body: "You have accepted the task '${task.name}'",
+          payload: task.id,
+        );
+      }
     }
   }
 

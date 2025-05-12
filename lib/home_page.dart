@@ -1,15 +1,15 @@
 // Import screens and services
-import 'package:chore/CalenderScreen.dart';
-import 'package:chore/Chat.dart';
-import 'package:chore/Expense_tracking.dart';
-import 'package:chore/Gamification.dart';
-import 'package:chore/home_screen.dart';
-import 'package:chore/shopping_list.dart';
+import 'CalenderScreen.dart';
+import 'Chat.dart';
+import 'Expense_tracking.dart';
+import 'Gamification.dart';
+import 'home_screen.dart';
+import 'shopping_list.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:chore/household_members_screen.dart';
-import 'package:chore/ProfileScreen.dart';
-import 'package:chore/services/household_service.dart';
+import 'household_members_screen.dart';
+import '/ProfileScreen.dart';
+import 'services/household_service.dart';
 
 /// Main home page of the application
 /// Contains bottom navigation and manages different screens

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'local_notifications.dart';
 
 class Chat extends StatefulWidget {
   const Chat({super.key});
@@ -15,12 +16,14 @@ class _ChatState extends State<Chat> {
   String? chatRoomId;
   String householdName = '';
   String? currentUserEmail;
+  bool _chatNotificationsEnabled = true;
 
   @override
   void initState() {
     super.initState();
     setupChatRoom();
     _loadCurrentUser();
+    _loadNotificationPreferences();
   }
 
   Future<void> _loadCurrentUser() async {
@@ -29,6 +32,28 @@ class _ChatState extends State<Chat> {
       setState(() {
         currentUserEmail = user.email;
       });
+    }
+  }
+
+  Future<void> _loadNotificationPreferences() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('settings')
+          .doc('notifications')
+          .get();
+
+      if (doc.exists) {
+        setState(() {
+          _chatNotificationsEnabled = doc.data()?['chatNotifications'] ?? true;
+        });
+      }
+    } catch (e) {
+      print('Error loading notification preferences: $e');
     }
   }
 
@@ -67,16 +92,53 @@ class _ChatState extends State<Chat> {
     final User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
+        final messageText = messageController.text.trim();
+
         await FirebaseFirestore.instance
             .collection('chatRooms')
             .doc(chatRoomId!)
             .collection('messages')
             .add({
-          'text': messageController.text.trim(),
+          'text': messageText,
           'senderId': user.uid,
           'senderEmail': user.email,
           'timestamp': FieldValue.serverTimestamp(),
         });
+
+        // Send notification to other household members if they have notifications enabled
+        if (_chatNotificationsEnabled) {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+
+          // Get list of household members to notify
+          final List<dynamic> householdMembers =
+              List<String>.from(userDoc['householdMembers'] ?? []);
+
+          // Remove the sender from the notification list
+          householdMembers.remove(user.uid);
+
+          // Check each member's notification preferences and send if enabled
+          for (String memberId in householdMembers) {
+            final memberPrefs = await FirebaseFirestore.instance
+                .collection('users')
+                .doc(memberId)
+                .collection('settings')
+                .doc('notifications')
+                .get();
+
+            if (memberPrefs.exists &&
+                memberPrefs.data()?['chatNotifications'] == true) {
+              // Send notification
+              await LocalNotificationService.sendChatMessageNotification(
+                user.email ?? 'Unknown User',
+                messageText,
+                chatId: chatRoomId,
+              );
+            }
+          }
+        }
 
         messageController.clear();
 

@@ -1,7 +1,71 @@
 // Import the authentication page and required Flutter/Firebase packages
-import 'package:chore/auth_page.dart';
+import 'auth_page.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'local_notifications.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:firebase_messaging/firebase_messaging.dart';
+
+// Global navigator key for accessing navigator from anywhere
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+// Background message handler for Firebase Cloud Messaging
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Initialize Firebase if not already initialized
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  tz.initializeTimeZones();
+  LocalNotificationService.initialize();
+
+  // If there's a notification, show it
+  final notif = message.notification;
+  final title = notif?.title ?? "Background Notification";
+  final body = notif?.body ?? "You have a new message";
+
+  // Local notification
+  await LocalNotificationService.sendTaskNotification(
+    title: title,
+    body: body,
+    payload: message.data['taskId'] ?? '',
+  );
+
+  // Log the message here
+  print("Handling a background message: ${message.messageId}");  
+}
+
+// Function to initialize FCM and subscribe to household topic
+Future<void> _initFCM() async {
+  // Request user permission to receive notifications
+  await FirebaseMessaging.instance.requestPermission();
+  // Determine user householdID
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return; // User not logged in
+  final userDoc = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .get();
+  final householdID = userDoc.get('householdID') as String;
+
+  // Subscribe THIS device to the "householdID" topic
+  await FirebaseMessaging.instance.subscribeToTopic(householdID);
+}
+
+// Foreground message handling
+void _initFCMListeners() {
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    final notification = message.notification;
+    final title = notification?.title ?? 'New Notification';
+    final body = notification?.body ?? 'You have a new message';
+
+    LocalNotificationService.sendTaskNotification(
+      title: title,
+      body: body,
+      payload: message.data['taskId'] ?? '',
+    );
+  });
+}
 
 /// Entry point of the application
 /// Initializes Firebase and starts the app
@@ -21,6 +85,35 @@ void main() async {
   // Initialize Firebase with the specified options
   await Firebase.initializeApp(options: options);
 
+  // Enable Firestore offline persistence
+  FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true);
+  
+  // Request notification permissions (iOS)
+  NotificationSettings settings = await FirebaseMessaging.instance.requestPermission(
+    alert: true,
+    badge: true,
+    sound: true,
+    provisional: false,
+  );
+
+  print('User granted permission: ${settings.authorizationStatus}');
+
+  // iOS will show notifications when app is foregrounded
+  await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+    alert: true,
+    badge: true,
+    sound: true,
+  );
+
+  // Set Firebase Messaging background handler
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  // Initialize timezone and notifications
+  tz.initializeTimeZones();
+  LocalNotificationService.initialize();
+  await _initFCM();
+  _initFCMListeners();
+  
   // Start the application by running MyApp
   runApp(const MyApp());
 }

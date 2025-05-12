@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'Data/Task.dart';
 import 'services/TaskService.dart';
+import 'local_notifications.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -13,14 +14,14 @@ class CalendarScreen extends StatefulWidget {
   _CalendarScreenState createState() => _CalendarScreenState();
 }
 
-class _CalendarScreenState extends State<CalendarScreen> {
-  DateTime _selectedDay = DateTime.now();
+class _CalendarScreenState extends State<CalendarScreen> {  DateTime _selectedDay = DateTime.now();
   DateTime _focusedDay = DateTime.now();
   late Future<bool> _isLeaderFuture;
   late Future<String> _householdIdFuture;
   late Future<List<Map<String, dynamic>>> _householdMembersFuture;
   final user = FirebaseAuth.instance.currentUser!;
-
+  bool _taskReminderEnabled = false;
+  int _taskReminderLeadDays = 1;
   @override
   void initState() {
     super.initState();
@@ -29,6 +30,31 @@ class _CalendarScreenState extends State<CalendarScreen> {
         _householdIdFuture.then((householdId) => _checkIfLeader());
     _householdMembersFuture =
         _householdIdFuture.then((householdId) => _getHouseholdMembers());
+    _loadNotificationPreferences();
+  }
+
+  // Load notification preferences from Firestore
+  Future<void> _loadNotificationPreferences() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('settings')
+          .doc('notifications')
+          .get();
+
+      if (doc.exists) {
+        setState(() {
+          _taskReminderEnabled = doc.data()?['taskReminders'] ?? false;
+          _taskReminderLeadDays = doc.data()?['notificationLeadTime'] ?? 1;
+        });
+      }
+    } catch (e) {
+      print('Error loading notification preferences: $e');
+    }
   }
 
   // Helper method to get household ID
@@ -115,18 +141,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
   }
 
-  // We'll no longer need this method since its logic is now in _getHouseholdId
-  Future<void> _createOrJoinHousehold() async {
-    try {
-      // This method is now included in _getHouseholdId
-      // Keeping it as a placeholder to prevent breaking existing code
-      print(
-          'Using _createOrJoinHousehold is deprecated, functionality moved to _getHouseholdId');
-    } catch (e) {
-      print('Error in _createOrJoinHousehold: $e');
-      rethrow;
-    }
-  }
 
   Future<bool> _checkIfLeader() async {
     try {
@@ -355,41 +369,64 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     ),
                   );
                   return;
-                }
-
-                try {
-                  final String assignedMemberId =
-                      isLeader ? (selectedMemberId ?? user.uid) : user.uid;
-
-                  await TaskService.addTask(
-                    householdId: householdId,
-                    memberId: assignedMemberId,
-                    name: nameController.text.trim(),
-                    category: "", // Pass empty string for category
-                    dueDate: selectedDate,
-                    difficulty: selectedDifficulty,
-                    estimatedMinutes: timeEstimate,
-                  );
-
-                  if (mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Task added successfully'),
-                        backgroundColor: Colors.green,
-                      ),
+                }                  try {
+                    final String assignedMemberId =
+                        isLeader ? (selectedMemberId ?? user.uid) : user.uid;
+                    final String taskName = nameController.text.trim();
+                    final String taskId = '${taskName}_${DateTime.now().millisecondsSinceEpoch}';
+                    
+                    // Add task using TaskService
+                    await TaskService.addTask(
+                      householdId: householdId,
+                      memberId: assignedMemberId,
+                      name: taskName,
+                      category: "", // Pass empty string for category
+                      dueDate: selectedDate,
+                      difficulty: selectedDifficulty,
+                      estimatedMinutes: timeEstimate,
                     );
-                  }
+
+                    // Send notifications in a try-catch block to ensure task creation succeeds regardless
+                    try {
+                      await LocalNotificationService.sendTaskNotification(
+                        title: 'New Task Created',
+                        body: 'Task "$taskName" has been created',
+                        payload: 'task_created_$taskId',
+                      );
+
+                      // Schedule reminder if enabled
+                      if (_taskReminderEnabled) {
+                        await LocalNotificationService.scheduleTaskReminder(
+                          taskId,
+                          taskName,
+                          selectedDate,
+                          _taskReminderLeadDays,
+                        );
+                      }
+                    } catch (notificationError) {
+                      print('Error sending notification: $notificationError');
+                      // Continue execution as task was created successfully
+                    }
+
+                    if (mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Task added successfully'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    }
                 } catch (e) {
-                  print('Detailed error when adding task: $e');
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Error adding task: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
+                    print('Detailed error when adding task: $e');
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error adding task: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -470,15 +507,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
               try {
                 final int timeSpent =
-                    int.parse(timeSpentController.text.trim());
-
-                await TaskService.completeTask(
+                    int.parse(timeSpentController.text.trim());                await TaskService.completeTask(
                   householdId: householdId,
                   memberId: FirebaseAuth.instance.currentUser!.uid,
                   taskId: task.id,
                   points: task.difficulty.points,
                   timeSpentMinutes: timeSpent,
                 );
+
+                // Send completion notification
+                await LocalNotificationService.sendTaskNotification(
+                  title: 'Task Completed',
+                  body: 'You completed "${task.name}" and earned ${task.difficulty.points} points!',
+                  payload: 'task_${task.id}_completed',
+                );
+
+                // Cancel any existing reminders for this task
+                LocalNotificationService.cancelTaskReminder(task.id);
 
                 if (mounted) {
                   Navigator.pop(context);

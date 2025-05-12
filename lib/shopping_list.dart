@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'local_notifications.dart';
 
 /// A widget that displays and manages the household shopping list
 /// Allows users to add, edit, delete, and mark items as complete
@@ -16,6 +17,82 @@ class _ShoppingListState extends State<ShoppingList> {
   // Controllers for user input
   final TextEditingController _itemController = TextEditingController();
   String _selectedCategory = 'Food';
+  bool _shoppingReminderEnabled = false;
+  TimeOfDay _shoppingReminderTime = const TimeOfDay(hour: 9, minute: 0);
+  bool _prefsLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotificationPreferences();
+    LocalNotificationService.initialize();
+  }
+
+  // Load notification preferences from Firestore
+  Future<void> _loadNotificationPreferences() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final prefsDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('notificationSettings')
+          .doc('shopping')
+          .get();
+
+      final data = prefsDoc.data() ?? {};
+      setState(() {
+        _shoppingReminderEnabled = data['shoppingReminderEnabled'] as bool? ?? false;
+        final int hour = data['shoppingReminderHour'] as int? ?? 9;
+        final int minute = data['shoppingReminderMinute'] as int? ?? 0;
+        _shoppingReminderTime = TimeOfDay(hour: hour, minute: minute);
+        _prefsLoaded = true;
+      });
+
+      // Setup or cancel reminder based on preferences
+      if (_shoppingReminderEnabled) {
+        await _setupShoppingReminder(user.uid);
+      }
+    } catch (e) {
+      print('Error loading notification preferences: $e');
+      setState(() => _prefsLoaded = true);
+    }
+  }
+
+  // Setup shopping reminder
+  Future<void> _setupShoppingReminder(String uid) async {
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+    
+    if (!userDoc.exists) return;
+    
+    final householdId = userDoc.get('household_id') as String?;
+    if (householdId == null) return;
+
+    await LocalNotificationService.scheduleShoppingReminder(
+      householdID: householdId,
+      userID: uid,
+      hour: _shoppingReminderTime.hour,
+      minute: _shoppingReminderTime.minute,
+    );
+  }
+
+  // Save notification preferences
+  Future<void> _saveNotificationPreferences(String uid) async {
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('notificationSettings')
+        .doc('shopping')
+        .set({
+          'shoppingReminderEnabled': _shoppingReminderEnabled,
+          'shoppingReminderHour': _shoppingReminderTime.hour,
+          'shoppingReminderMinute': _shoppingReminderTime.minute,
+        }, SetOptions(merge: true));
+  }
 
   // ===========================
   // Use Case 6.1: List Management Interface
@@ -39,12 +116,12 @@ class _ShoppingListState extends State<ShoppingList> {
       'price': 0.0,
       'category': category
     });
+
+    // Send notification for new item
+    await LocalNotificationService.sendShoppingItemAddedNotification(item);
   }
 
   /// Toggles the completion status of a shopping list item
-  /// @param uid: User ID for the current user
-  /// @param itemId: ID of the item to toggle
-  /// @param currentStatus: Current completion status of the item
   Future<void> toggleDone(String uid, String itemId, bool currentStatus) async {
     await FirebaseFirestore.instance
         .collection('users')
@@ -52,18 +129,55 @@ class _ShoppingListState extends State<ShoppingList> {
         .collection('shoppinglistinfohere')
         .doc(itemId)
         .update({'done': !currentStatus});
+
+    // If item is being marked as done, show notification
+    if (!currentStatus) {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('shoppinglistinfohere')
+          .doc(itemId)
+          .get();
+      
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        final itemName = data['item'] as String;
+        await LocalNotificationService.sendTaskNotification(
+          title: "Item Completed",
+          body: "You've marked '$itemName' as done",
+          payload: itemId,
+        );
+      }
+    }
   }
 
   /// Deletes an item from the shopping list
-  /// @param uid: User ID for the current user
-  /// @param itemId: ID of the item to delete
   Future<void> deleteItem(String uid, String itemId) async {
+    // Get item name before deletion for notification
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('shoppinglistinfohere')
+        .doc(itemId)
+        .get();
+
     await FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
         .collection('shoppinglistinfohere')
         .doc(itemId)
         .delete();
+
+    // Show notification for item deletion
+    if (doc.exists) {
+      final data = doc.data() as Map<String, dynamic>;
+      final itemName = data['item'] as String;
+      await LocalNotificationService.sendTaskNotification(
+        title: "Item Removed",
+        body: "'$itemName' has been removed from your shopping list",
+        payload: itemId,
+      );
+    }
   }
 
   /// Updates the details of a shopping list item
@@ -362,10 +476,88 @@ class _ShoppingListState extends State<ShoppingList> {
             fontWeight: FontWeight.bold,
           ),
         ),
+        actions: [
+          // Notification Settings Button
+          IconButton(
+            icon: const Icon(Icons.notifications),
+            onPressed: () async {
+              if (user == null) return;
+              
+              final picked = await showTimePicker(
+                context: context,
+                initialTime: _shoppingReminderTime,
+              );
+              
+              if (picked != null) {
+                setState(() {
+                  _shoppingReminderEnabled = true;
+                  _shoppingReminderTime = picked;
+                });
+                
+                await _setupShoppingReminder(user.uid);
+                await _saveNotificationPreferences(user.uid);
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Shopping reminder set for ${picked.format(context)}',
+                      ),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+        ],
       ),
       body: Center(
         child: Column(
           children: [
+            // Shopping reminder settings
+            Card(
+              margin: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: SwitchListTile(
+                  title: const Text('Daily Shopping Reminder'),
+                  subtitle: Text(
+                    _shoppingReminderEnabled
+                        ? 'Every day at ${_shoppingReminderTime.format(context)}'
+                        : 'Tap to set reminder time',
+                  ),
+                  value: _shoppingReminderEnabled,
+                  onChanged: (user != null)
+                      ? (enabled) async {
+                          setState(() => _shoppingReminderEnabled = enabled);
+                          
+                          if (enabled) {
+                            final picked = await showTimePicker(
+                              context: context,
+                              initialTime: _shoppingReminderTime,
+                            );
+                            if (picked != null) {
+                              setState(() => _shoppingReminderTime = picked);
+                              await _setupShoppingReminder(user.uid);
+                            }
+                          } else {
+                            await LocalNotificationService.cancelShoppingReminder();
+                          }
+                          
+                          await _saveNotificationPreferences(user.uid);
+                        }
+                      : null,
+                ),
+              ),
+            ),
+            
             // Add Item Section
             Container(
               padding: const EdgeInsets.all(16.0),

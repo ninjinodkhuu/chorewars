@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'local_notifications.dart';
 
 class ExpenseTracking extends StatefulWidget {
   const ExpenseTracking({super.key});
@@ -215,6 +216,12 @@ class _ExpenseTrackingState extends State<ExpenseTracking> {
                         'amount': amount,
                         'timestamp': FieldValue.serverTimestamp(),
                       });
+                      
+                      // Send notification about the new expense
+                      await LocalNotificationService.sendExpenseNotification(
+                        amount,
+                        selectedCategory,
+                      );
                     }
 
                     Navigator.pop(context);

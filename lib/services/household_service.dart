@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 // Import Flutter material package for UI widgets
 import 'package:flutter/material.dart';
-import '../local_notifications.dart';
 
 /// Service class to handle all household-related operations
 class HouseholdService {
@@ -75,47 +74,155 @@ class HouseholdService {
         : 'My Household';
   }
 
-  /// Updates the household name
-  static Future<void> updateHouseholdName(String newName) async {
+  /// Gets the current household ID
+  static Future<String> getHouseholdId() async {
     User? user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .update({'householdName': newName});
-
-      // Send notification about the name change
-      await LocalNotificationService.sendHouseholdUpdateNotification(
-        'Household Name Updated',
-        'The household name has been changed to "$newName"',
-      );
+    if (user == null) {
+      throw Exception('User not logged in');
     }
+
+    DocumentSnapshot doc =
+        await _firestore.collection('users').doc(user.uid).get();
+    String? householdId =
+        doc.data()?.toString().contains('household_id') == true
+            ? (doc.data() as Map<String, dynamic>)['household_id']
+            : null;
+
+    if (householdId == null) {
+      // Create a new household for the user
+      DocumentReference householdRef =
+          await _firestore.collection('households').add({
+        'createdAt': FieldValue.serverTimestamp(),
+        'leaderId': user.uid,
+      });
+
+      // Update user document with new household ID
+      await _firestore.collection('users').doc(user.uid).set({
+        'household_id': householdRef.id,
+      }, SetOptions(merge: true));
+
+      return householdRef.id;
+    }
+
+    return householdId;
   }
 
-  /// Invites a new member to the household
-  static Future<void> inviteMember(String email) async {
+  /// Updates the household name in Firestore
+  /// Throws an exception if user is not logged in
+  static Future<void> updateHouseholdName(String name) async {
     User? user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      // Existing invitation logic...
-
-      // Send notification about new member
-      await LocalNotificationService.sendHouseholdUpdateNotification(
-        'New Member Invited',
-        'An invitation has been sent to $email',
-      );
+    if (user == null) {
+      throw Exception('Not logged in');
     }
+
+    // Update the household name in the user's document
+    await _firestore.collection('users').doc(user.uid).update({
+      'householdName': name.trim(),
+    });
   }
 
-  /// Updates household statistics and triggers a weekly report
-  static Future<void> updateHouseholdStats(String householdId) async {
-    try {
-      // Existing stats update logic...
-
-      // Schedule weekly household report
-      await LocalNotificationService.scheduleWeeklyHouseholdReport(householdId);
-    } catch (e) {
-      print('Error updating household stats: $e');
-      rethrow;
+  /// Stream that provides real-time updates of pending invites for current user
+  static Stream<List<Map<String, dynamic>>> streamPendingInvites() {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return Stream.value([]);
     }
+
+    return _firestore
+        .collection('household_invitations')
+        .where('invitedUserId', isEqualTo: user.uid)
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => {
+                  'id': doc.id,
+                  'householdId': doc.data()['householdId'],
+                  'invitedBy': doc.data()['invitedBy'],
+                  'householdName': doc.data()['householdName'],
+                  'timestamp': doc.data()['timestamp'],
+                })
+            .toList());
+  }
+
+  /// Accept a household invitation
+  static Future<void> acceptInvitation(String invitationId) async {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw Exception('Not logged in');
+    }
+
+    // Get the invitation document
+    DocumentSnapshot inviteDoc = await _firestore
+        .collection('household_invitations')
+        .doc(invitationId)
+        .get();
+
+    if (!inviteDoc.exists) {
+      throw Exception('Invitation not found');
+    }
+
+    String householdId = inviteDoc.get('householdId');
+    String householdName = inviteDoc.get('householdName');
+
+    // Start a batch write
+    WriteBatch batch = _firestore.batch();
+
+    // Add user to household members
+    batch.set(
+      _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('members')
+          .doc(user.uid),
+      {
+        'email': user.email,
+        'joinedAt': FieldValue.serverTimestamp(),
+        'isLeader': false,
+        'totalPoints': 0,
+        'completedTasks': 0,
+        'totalTasks': 0
+      },
+    );
+
+    // Update user's profile
+    batch.set(
+      _firestore.collection('users').doc(user.uid),
+      {
+        'household_id': householdId,
+        'householdName': householdName,
+        'lastUpdated': FieldValue.serverTimestamp()
+      },
+      SetOptions(merge: true),
+    );
+
+    // Update invitation status
+    batch.update(
+      _firestore.collection('household_invitations').doc(invitationId),
+      {'status': 'accepted', 'acceptedAt': FieldValue.serverTimestamp()},
+    );
+
+    // Commit the batch
+    await batch.commit();
+  }
+
+  /// Decline a household invitation
+  static Future<void> declineInvitation(String invitationId) async {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw Exception('Not logged in');
+    }
+
+    await _firestore
+        .collection('household_invitations')
+        .doc(invitationId)
+        .update({
+      'status': 'declined',
+      'declinedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Check if user has any pending invites
+  static Stream<bool> hasPendingInvites() {
+    return streamPendingInvites().map((invites) => invites.isNotEmpty);
   }
 }

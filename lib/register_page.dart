@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'components/my_button.dart';
@@ -18,6 +19,18 @@ class _RegisterPageState extends State<RegisterPage> {
   final passwordController = TextEditingController();
   final ConfirmpasswordController = TextEditingController();
   String givenMessage = "";
+
+  Future<void> _storeUserData(String uid, String email) async {
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        'email': email,
+        'created_at': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print("Error storing user data: $e");
+    }
+  }
+
   // sign user in method
   void signUserUp() async {
     // show loading circle
@@ -34,10 +47,15 @@ class _RegisterPageState extends State<RegisterPage> {
     try {
       // Check if passwords match by comparing their text values
       if (passwordController.text == ConfirmpasswordController.text) {
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        final userCredential =
+            await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: emailController.text,
           password: passwordController.text,
         );
+
+        // Store the user data in Firestore
+        await _storeUserData(userCredential.user!.uid, emailController.text);
+
         // pop the loading circle
         Navigator.pop(context);
       } else {

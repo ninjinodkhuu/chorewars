@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'services/household_shopping_service.dart';
+import 'services/household_expense_service.dart';
 
 /// A widget that displays and manages the household shopping list
 /// Allows users to add, edit, delete, and mark items as complete
@@ -16,96 +18,126 @@ class _ShoppingListState extends State<ShoppingList> {
   // Controllers for user input
   final TextEditingController _itemController = TextEditingController();
   String _selectedCategory = 'Food';
+  String? householdId;
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeHousehold();
+  }
+
+  Future<void> _initializeHousehold() async {
+    try {
+      householdId = await HouseholdShoppingService.getCurrentHouseholdId();
+    } catch (e) {
+      print('Error initializing household: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
 
   // ===========================
   // Use Case 6.1: List Management Interface
   // ===========================
 
   /// Adds a new item to the shopping list
-  /// @param uid: User ID for the current user
   /// @param item: Name of the item to add
   /// @param category: Category of the item (defaults to 'Food')
-  Future<void> addItem(String uid, String item,
-      {String category = 'Food'}) async {
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('shoppinglistinfohere')
-        .add({
-      'item': item,
-      'done': false,
-      'quantity': 1,
-      'unit': '',
-      'price': 0.0,
-      'category': category
-    });
+  Future<void> addItem(String item, {String category = 'Food'}) async {
+    if (householdId == null) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      await HouseholdShoppingService.addItem(
+        householdId: householdId!,
+        item: item,
+        category: category,
+        addedBy: user.uid,
+      );
+    } catch (e) {
+      print('Error adding item: $e');
+    }
   }
 
   /// Toggles the completion status of a shopping list item
-  /// @param uid: User ID for the current user
   /// @param itemId: ID of the item to toggle
   /// @param currentStatus: Current completion status of the item
-  Future<void> toggleDone(String uid, String itemId, bool currentStatus) async {
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('shoppinglistinfohere')
-        .doc(itemId)
-        .update({'done': !currentStatus});
+  Future<void> toggleDone(String itemId, bool currentStatus) async {
+    if (householdId == null) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      await HouseholdShoppingService.toggleItemDone(
+        householdId: householdId!,
+        itemId: itemId,
+        currentStatus: currentStatus,
+        completedBy: user.uid,
+      );
+    } catch (e) {
+      print('Error toggling item: $e');
+    }
   }
 
   /// Deletes an item from the shopping list
-  /// @param uid: User ID for the current user
   /// @param itemId: ID of the item to delete
-  Future<void> deleteItem(String uid, String itemId) async {
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('shoppinglistinfohere')
-        .doc(itemId)
-        .delete();
+  Future<void> deleteItem(String itemId) async {
+    if (householdId == null) return;
+
+    try {
+      await HouseholdShoppingService.deleteItem(
+        householdId: householdId!,
+        itemId: itemId,
+      );
+    } catch (e) {
+      print('Error deleting item: $e');
+    }
   }
 
   /// Updates the details of a shopping list item
-  /// @param uid: User ID for the current user
   /// @param itemId: ID of the item to update
   /// @param quantity: New quantity value
   /// @param unit: New unit value
   /// @param price: New price value
   /// @param category: New category value
-  Future<void> updateItemDetails(String uid, String itemId, int quantity,
-      String unit, double price, String category) async {
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('shoppinglistinfohere')
-        .doc(itemId)
-        .update({
-      'quantity': quantity,
-      'unit': unit,
-      'price': price,
-      'category': category,
-    });
+  Future<void> updateItemDetails(String itemId, int quantity, String unit,
+      double price, String category) async {
+    if (householdId == null) return;
+
+    try {
+      await HouseholdShoppingService.updateItem(
+        householdId: householdId!,
+        itemId: itemId,
+        updates: {
+          'quantity': quantity,
+          'unit': unit,
+          'price': price,
+          'category': category,
+        },
+      );
+    } catch (e) {
+      print('Error updating item: $e');
+    }
   }
 
   /// Shows a modal bottom sheet with item details and editing options
   /// @param context: Build context for showing the modal
-  /// @param uid: User ID for the current user
   /// @param itemId: ID of the item being edited
   /// @param itemName: Name of the item
   /// @param quantity: Current quantity
   /// @param unit: Current unit
   /// @param price: Current price
   /// @param selectedCategory: Current category
-  void showItemDetails(
-      BuildContext context,
-      String uid,
-      String itemId,
-      String itemName,
-      int quantity,
-      String unit,
-      double price,
-      String selectedCategory) {
+  void showItemDetails(BuildContext context, String itemId, String itemName,
+      int quantity, String unit, double price, String selectedCategory) {
     String currentCategory = selectedCategory;
     final TextEditingController priceController =
         TextEditingController(text: price > 0 ? price.toString() : '');
@@ -113,7 +145,7 @@ class _ShoppingListState extends State<ShoppingList> {
     /// Helper function to update item details
     void updateDetails(String category, double? newPrice) {
       if (newPrice != null) {
-        updateItemDetails(uid, itemId, 1, '', newPrice, category);
+        updateItemDetails(itemId, 1, '', newPrice, category);
       }
     }
 
@@ -265,8 +297,8 @@ class _ShoppingListState extends State<ShoppingList> {
                                       double.tryParse(priceController.text) ??
                                           0.0;
                                   if (expensePrice > 0) {
-                                    convertToExpense(uid, itemId,
-                                        currentCategory, expensePrice);
+                                    convertToExpense(
+                                        itemId, currentCategory, expensePrice);
                                     Navigator.pop(context);
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
@@ -324,25 +356,27 @@ class _ShoppingListState extends State<ShoppingList> {
   }
 
   /// Converts a shopping list item to an expense
-  /// @param uid: User ID for the current user
   /// @param itemId: ID of the item to convert
   /// @param category: Category for the expense
   /// @param price: Amount of the expense
   Future<void> convertToExpense(
-      String uid, String itemId, String category, double price) async {
-    // Add the expense to expenses collection
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('expenses')
-        .add({
-      'category': category,
-      'amount': price,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
+      String itemId, String category, double price) async {
+    if (householdId == null) return;
 
-    // Remove item from shopping list
-    await deleteItem(uid, itemId);
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      await HouseholdShoppingService.convertToExpense(
+        householdId: householdId!,
+        itemId: itemId,
+        category: category,
+        amount: price,
+        addedBy: user.uid,
+      );
+    } catch (e) {
+      print('Error converting to expense: $e');
+    }
   }
 
   @override
@@ -364,360 +398,380 @@ class _ShoppingListState extends State<ShoppingList> {
         ),
       ),
       body: Center(
-        child: Column(
-          children: [
-            // Add Item Section
-            Container(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
+        child: isLoading
+            ? const CircularProgressIndicator()
+            : Column(
                 children: [
-                  // Input Card for new items
-                  Card(
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        children: [
-                          // Item name input field
-                          TextField(
-                            controller: _itemController,
-                            decoration: InputDecoration(
-                              labelText: 'Item',
-                              filled: true,
-                              fillColor: Colors.grey[50],
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          // Category dropdown
-                          Container(
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey[300]!),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: DropdownButton<String>(
-                              isExpanded: true,
-                              value: _selectedCategory,
-                              underline:
-                                  Container(), // Remove the default underline
-                              items: <String>[
-                                'Food',
-                                'Transport',
-                                'Entertainment',
-                                'Bills',
-                                'Other'
-                              ].map<DropdownMenuItem<String>>((String value) {
-                                return DropdownMenuItem<String>(
-                                  value: value,
-                                  child: Text(value),
-                                );
-                              }).toList(),
-                              onChanged: (String? value) {
-                                setState(() {
-                                  _selectedCategory = value!;
-                                });
-                              },
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          // Add Item button
-                          ElevatedButton(
-                            onPressed: () {
-                              if (uid.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('No user logged in.'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                                return;
-                              }
-                              if (_itemController.text.trim().isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Please name your item!'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                                return;
-                              }
-
-                              addItem(uid, _itemController.text.trim(),
-                                  category: _selectedCategory);
-                              _itemController.clear();
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue[900],
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 32, vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: const Text(
-                              'Add Item',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            // Shopping List Items
-            Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                // Listen to shopping list updates in real-time
-                stream: FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(uid)
-                    .collection('shoppinglistinfohere')
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  // Sort items by completion status
-                  final items = snapshot.data!.docs;
-                  final doneItems = items.where((item) {
-                    final data = item.data() as Map<String, dynamic>;
-                    return data.containsKey('done') && data['done'];
-                  }).toList();
-                  final notDoneItems = items.where((item) {
-                    final data = item.data() as Map<String, dynamic>?;
-                    return data == null ||
-                        !data.containsKey('done') ||
-                        !data['done'];
-                  }).toList();
-                  final sortedItems = [...notDoneItems, ...doneItems];
-
-                  // Show empty state if no items
-                  if (sortedItems.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.shopping_cart_outlined,
-                            size: 64,
-                            color: Colors.blue[200],
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Your shopping list is empty',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue[900],
-                            ),
-                          ),
-                          Text(
-                            'Add some items above',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  // List of shopping items
-                  return ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: sortedItems.length,
-                    itemBuilder: (context, index) {
-                      // Get item details
-                      final item = sortedItems[index];
-                      final itemId = item.id;
-                      final itemName = item['item'];
-                      final data = item.data() as Map<String, dynamic>;
-                      final itemDone =
-                          data.containsKey('done') ? data['done'] : false;
-                      final quantity =
-                          data.containsKey('quantity') ? data['quantity'] : 1;
-                      final unit = data.containsKey('unit') ? data['unit'] : '';
-                      final price =
-                          data.containsKey('price') ? data['price'] : 0.0;
-                      final category = data.containsKey('category')
-                          ? data['category']
-                          : 'Food';
-
-                      // Dismissible item card with delete functionality
-                      return Dismissible(
-                        key: Key(itemId),
-                        direction: DismissDirection.endToStart,
-                        onDismissed: (direction) {
-                          deleteItem(uid, itemId);
-                        },
-                        background: Container(
-                          margin: const EdgeInsets.symmetric(vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.red.shade400,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: const Icon(Icons.delete, color: Colors.white),
-                        ),
-                        child: Card(
-                          margin: const EdgeInsets.symmetric(vertical: 4),
+                  // Add Item Section
+                  Container(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      children: [
+                        // Input Card for new items
+                        Card(
+                          elevation: 2,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          elevation: 2,
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            leading: Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: itemDone
-                                    ? Colors.green.withOpacity(0.2)
-                                    : Colors.blue[900]!.withOpacity(0.2),
-                                shape: BoxShape.circle,
-                              ),
-                              child: IconButton(
-                                icon: Icon(
-                                  itemDone
-                                      ? Icons.check_circle
-                                      : Icons.radio_button_unchecked,
-                                  color: itemDone
-                                      ? Colors.green
-                                      : Colors.blue[900],
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              children: [
+                                // Item name input field
+                                TextField(
+                                  controller: _itemController,
+                                  decoration: InputDecoration(
+                                    labelText: 'Item',
+                                    filled: true,
+                                    fillColor: Colors.grey[50],
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
                                 ),
-                                onPressed: () async {
-                                  try {
-                                    await toggleDone(uid, itemId, itemDone);
-                                    if (!itemDone) {
-                                      // Show item details dialog when marking as done
-                                      // ignore: use_build_context_synchronously
-                                      showItemDetails(
-                                          context,
-                                          uid,
-                                          itemId,
-                                          itemName,
-                                          quantity,
-                                          unit,
-                                          price,
-                                          category);
+                                const SizedBox(height: 16),
+                                // Category dropdown
+                                Container(
+                                  decoration: BoxDecoration(
+                                    border:
+                                        Border.all(color: Colors.grey[300]!),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12),
+                                  child: DropdownButton<String>(
+                                    isExpanded: true,
+                                    value: _selectedCategory,
+                                    underline:
+                                        Container(), // Remove the default underline
+                                    items: <String>[
+                                      'Food',
+                                      'Transport',
+                                      'Entertainment',
+                                      'Bills',
+                                      'Other'
+                                    ].map<DropdownMenuItem<String>>(
+                                        (String value) {
+                                      return DropdownMenuItem<String>(
+                                        value: value,
+                                        child: Text(value),
+                                      );
+                                    }).toList(),
+                                    onChanged: (String? value) {
+                                      setState(() {
+                                        _selectedCategory = value!;
+                                      });
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                // Add Item button
+                                ElevatedButton(
+                                  onPressed: () {
+                                    if (uid.isEmpty) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                          content: Text('No user logged in.'),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    if (_itemController.text.trim().isEmpty) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                          content:
+                                              Text('Please name your item!'),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                      return;
                                     }
 
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          itemDone
-                                              ? 'Item marked incomplete'
-                                              : '✅ Item completed!',
-                                          style: const TextStyle(fontSize: 16),
-                                        ),
-                                        backgroundColor: itemDone
-                                            ? Colors.orange
-                                            : Colors.green,
-                                        behavior: SnackBarBehavior.floating,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(15),
-                                        ),
-                                        duration: const Duration(seconds: 2),
-                                      ),
-                                    );
-                                  } catch (e) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: const Text(
-                                          'Something went wrong!',
-                                          style: TextStyle(fontSize: 16),
-                                        ),
-                                        backgroundColor: Colors.red,
-                                        behavior: SnackBarBehavior.floating,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(15),
-                                        ),
-                                      ),
-                                    );
-                                    print('Error toggling shopping item: $e');
-                                  }
-                                },
-                              ),
+                                    addItem(_itemController.text.trim(),
+                                        category: _selectedCategory);
+                                    _itemController.clear();
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue[900],
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 32, vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Add Item',
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                              ],
                             ),
-                            title: Text(
-                              itemName,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                decoration: itemDone
-                                    ? TextDecoration.lineThrough
-                                    : TextDecoration.none,
-                                color: itemDone ? Colors.grey : Colors.black,
-                              ),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Shopping List Items
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      // Listen to shopping list updates in real-time
+                      stream: HouseholdShoppingService.streamShoppingList(
+                          householdId!),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return const Center(
+                              child: CircularProgressIndicator());
+                        }
+
+                        // Sort items by completion status
+                        final items = snapshot.data!.docs;
+                        final doneItems = items.where((item) {
+                          final data = item.data() as Map<String, dynamic>;
+                          return data.containsKey('done') && data['done'];
+                        }).toList();
+                        final notDoneItems = items.where((item) {
+                          final data = item.data() as Map<String, dynamic>?;
+                          return data == null ||
+                              !data.containsKey('done') ||
+                              !data['done'];
+                        }).toList();
+                        final sortedItems = [...notDoneItems, ...doneItems];
+
+                        // Show empty state if no items
+                        if (sortedItems.isEmpty) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
+                                Icon(
+                                  Icons.shopping_cart_outlined,
+                                  size: 64,
+                                  color: Colors.blue[200],
+                                ),
+                                const SizedBox(height: 16),
                                 Text(
-                                  unit.isNotEmpty
-                                      ? (price > 0
-                                          ? '$quantity x $unit   \$${price.toStringAsFixed(2)}'
-                                          : '$quantity x $unit')
-                                      : (price > 0
-                                          ? '$quantity   \$${price.toStringAsFixed(2)}'
-                                          : '$quantity'),
+                                  'Your shopping list is empty',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue[900],
+                                  ),
+                                ),
+                                Text(
+                                  'Add some items above',
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: Colors.grey[600],
                                   ),
                                 ),
-                                Container(
-                                  margin: const EdgeInsets.only(top: 4),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue[100]!.withOpacity(0.3),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    category,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.blue[900],
-                                    ),
-                                  ),
-                                ),
                               ],
                             ),
-                            onTap: () {
-                              showItemDetails(context, uid, itemId, itemName,
-                                  quantity, unit, price, category);
-                            },
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
+                          );
+                        }
+
+                        // List of shopping items
+                        return ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: sortedItems.length,
+                          itemBuilder: (context, index) {
+                            // Get item details
+                            final item = sortedItems[index];
+                            final itemId = item.id;
+                            final itemName = item['item'];
+                            final data = item.data() as Map<String, dynamic>;
+                            final itemDone =
+                                data.containsKey('done') ? data['done'] : false;
+                            final quantity = data.containsKey('quantity')
+                                ? data['quantity']
+                                : 1;
+                            final unit =
+                                data.containsKey('unit') ? data['unit'] : '';
+                            final price =
+                                data.containsKey('price') ? data['price'] : 0.0;
+                            final category = data.containsKey('category')
+                                ? data['category']
+                                : 'Food';
+
+                            // Dismissible item card with delete functionality
+                            return Dismissible(
+                              key: Key(itemId),
+                              direction: DismissDirection.endToStart,
+                              onDismissed: (direction) {
+                                deleteItem(itemId);
+                              },
+                              background: Container(
+                                margin: const EdgeInsets.symmetric(vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.shade400,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                alignment: Alignment.centerRight,
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 20),
+                                child: const Icon(Icons.delete,
+                                    color: Colors.white),
+                              ),
+                              child: Card(
+                                margin: const EdgeInsets.symmetric(vertical: 4),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 2,
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  leading: Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: itemDone
+                                          ? Colors.green.withOpacity(0.2)
+                                          : Colors.blue[900]!.withOpacity(0.2),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: IconButton(
+                                      icon: Icon(
+                                        itemDone
+                                            ? Icons.check_circle
+                                            : Icons.radio_button_unchecked,
+                                        color: itemDone
+                                            ? Colors.green
+                                            : Colors.blue[900],
+                                      ),
+                                      onPressed: () async {
+                                        try {
+                                          await toggleDone(itemId, itemDone);
+                                          if (!itemDone) {
+                                            // Show item details dialog when marking as done
+                                            // ignore: use_build_context_synchronously
+                                            showItemDetails(
+                                                context,
+                                                itemId,
+                                                itemName,
+                                                quantity,
+                                                unit,
+                                                price,
+                                                category);
+                                          }
+
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                itemDone
+                                                    ? 'Item marked incomplete'
+                                                    : '✅ Item completed!',
+                                                style: const TextStyle(
+                                                    fontSize: 16),
+                                              ),
+                                              backgroundColor: itemDone
+                                                  ? Colors.orange
+                                                  : Colors.green,
+                                              behavior:
+                                                  SnackBarBehavior.floating,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(15),
+                                              ),
+                                              duration:
+                                                  const Duration(seconds: 2),
+                                            ),
+                                          );
+                                        } catch (e) {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            SnackBar(
+                                              content: const Text(
+                                                'Something went wrong!',
+                                                style: TextStyle(fontSize: 16),
+                                              ),
+                                              backgroundColor: Colors.red,
+                                              behavior:
+                                                  SnackBarBehavior.floating,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(15),
+                                              ),
+                                            ),
+                                          );
+                                          print(
+                                              'Error toggling shopping item: $e');
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                  title: Text(
+                                    itemName,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      decoration: itemDone
+                                          ? TextDecoration.lineThrough
+                                          : TextDecoration.none,
+                                      color:
+                                          itemDone ? Colors.grey : Colors.black,
+                                    ),
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        unit.isNotEmpty
+                                            ? (price > 0
+                                                ? '$quantity x $unit   \$${price.toStringAsFixed(2)}'
+                                                : '$quantity x $unit')
+                                            : (price > 0
+                                                ? '$quantity   \$${price.toStringAsFixed(2)}'
+                                                : '$quantity'),
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                      Container(
+                                        margin: const EdgeInsets.only(top: 4),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blue[100]!
+                                              .withOpacity(0.3),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          category,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                            color: Colors.blue[900],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  onTap: () {
+                                    showItemDetails(context, itemId, itemName,
+                                        quantity, unit, price, category);
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }

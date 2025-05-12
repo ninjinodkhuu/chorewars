@@ -43,5 +43,5 @@ app.*.map.json
 /android/app/release
 
 # Ignore JDK directory
-Oracle_JDK-24/
+/Oracle_JDK-24/
 

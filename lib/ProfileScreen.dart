@@ -1,3 +1,20 @@
+// =========================
+// ProfileScreen.dart
+// =========================
+// This file implements the user profile screen for Chorewars.
+// It allows users to view and edit their profile, manage household members, and set notification preferences.
+//
+// Key design decisions:
+// - Integrates with Firebase Auth and Firestore for user and household data.
+// - Supports editing username, inviting members, and managing notification settings.
+// - Notification preferences are loaded and saved for each user.
+// - UI provides feedback for actions (e.g., saving, errors) using SnackBar.
+//
+// Contributor notes:
+// - All Firestore and notification logic is abstracted for easier updates.
+// - If you add new profile fields or notification types, update both the UI and Firestore logic.
+// - Keep comments up to date for onboarding new contributors.
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

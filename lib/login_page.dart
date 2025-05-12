@@ -1,3 +1,15 @@
+// This file defines the login page for Chorewars.
+// It handles user authentication, input validation, and navigation to registration.
+//
+// Key design decisions:
+// - Uses text controllers for email and password fields for state management.
+// - Provides error feedback for failed logins.
+// - Includes social sign-in buttons for extensibility.
+// - UI is designed for clarity and ease of use for new users.
+// - Navigation to registration is handled via a callback.
+//
+// If you add new authentication methods, update the UI and logic here.
+
 // Import required Firebase and Flutter packages
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';

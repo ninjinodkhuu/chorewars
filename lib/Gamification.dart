@@ -1,3 +1,15 @@
+// This file implements the gamification and leaderboard features for Chorewars.
+// It displays household member rankings, points, and analytical insights.
+//
+// Key design decisions:
+// - Uses Firestore to fetch household and member data.
+// - Leaderboard is sorted by total points and visually highlights top ranks.
+// - Analytical insights are shown for completion rate, average points, and time.
+// - Navigation to task history for each member is provided.
+// - UI is designed for clarity and motivation.
+//
+// If you add new gamification features, update the Firestore queries and UI here.
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

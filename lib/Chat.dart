@@ -1,3 +1,15 @@
+// This file implements the main chat screen for Chorewars.
+// It allows users to send and receive messages within their household.
+//
+// Key design decisions:
+// - Uses Firestore for real-time chat data and message storage.
+// - Integrates with local notifications for new message alerts.
+// - UI distinguishes between current user and others for message bubbles.
+// - Loads user and notification preferences on init.
+// - Handles chat room setup and message sending logic.
+//
+// If you add new chat features, update the Firestore structure and notification logic here.
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';

@@ -1,3 +1,15 @@
+// This file defines the registration page for new users in Chorewars.
+// It handles user input, validation, and registration with Firebase Auth and Firestore.
+//
+// Key design decisions:
+// - We use text controllers for all input fields to manage state.
+// - Registration stores user email and creation time in Firestore for later use.
+// - Error handling is provided for both Auth and Firestore operations.
+// - The UI is designed to be beginner-friendly, with clear prompts and validation.
+// - Social sign-in buttons are included for extensibility.
+//
+// If you add new registration fields, update both the UI and Firestore logic.
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';

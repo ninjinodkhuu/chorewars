@@ -1,3 +1,18 @@
+// =========================
+// task_history.dart
+// =========================
+// This file implements the task history screen for Chorewars.
+// It displays a member's completed tasks and statistics, pulling data from Firestore.
+//
+// Key design decisions:
+// - Integrates with Firestore for real-time task and stats data.
+// - UI shows a list of completed tasks and summary statistics for a household member.
+// - Error handling is done via try-catch and print statements for debugging.
+//
+// Contributor notes:
+// - If you add new task fields or stats, update both the UI and Firestore logic.
+// - Keep comments up to date for onboarding new contributors.
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';

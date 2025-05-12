@@ -1,3 +1,18 @@
+// =========================
+// SquareCard.dart
+// =========================
+// This file defines the SquareCard widget for displaying individual tasks in a square card format.
+// Used throughout the app to visually represent tasks with status, date, and styling.
+//
+// Key design decisions:
+// - Receives a Task object and displays its details in a styled card.
+// - Card color and appearance change based on task status (e.g., abandoned).
+// - Designed for reuse in task lists and dashboards.
+//
+// Contributor notes:
+// - If you add new task fields, update the UI here.
+// - Keep comments up to date for onboarding new contributors.
+
 import 'Data/Task.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';

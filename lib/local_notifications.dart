@@ -1,3 +1,17 @@
+// This file handles all local notification logic for the Chorewars app.
+// We use flutter_local_notifications for cross-platform notifications.
+// The goal is to provide timely reminders and updates for tasks, shopping, chat, and household events.
+//
+// Key design decisions:
+// - We group notifications by type (tasks, household, communication, shopping) for clarity and management.
+// - Each notification type has its own channel and group, making it easy to control notification settings per category.
+// - We use unique IDs for notifications based on content (e.g., taskId.hashCode) to avoid collisions.
+// - We support scheduling, immediate, and recurring notifications.
+// - We provide web stubs for notification actions, so the codebase is cross-platform.
+// - All navigation from notifications is handled via payloads and a global navigator key.
+//
+// If you add a new notification type, create a new channel and group as needed, and follow the established pattern.
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
@@ -5,18 +19,20 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+// Global navigator key for handling navigation from notification taps
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class LocalNotificationService {
+  // Main plugin instance for notifications
   static final _notificationsPlugin = FlutterLocalNotificationsPlugin();
 
-  // Channel Groups
+  // Channel Groups: Used to organize notification channels by feature area
   static const String taskGroup = 'tasks';
   static const String householdGroup = 'household';
   static const String communicationGroup = 'communication';
   static const String shoppingGroup = 'shopping';
 
-  // Channel IDs
+  // Channel IDs: Each notification type gets its own channel for user control
   static const String taskRemindersChannel = 'task_reminders';
   static const String taskEventsChannel = 'task_events';
   static const String taskPointsChannel = 'task_points';
@@ -27,8 +43,9 @@ class LocalNotificationService {
   static const String shoppingUpdatesChannel = 'shopping_updates';
   static const String expenseUpdatesChannel = 'expense_updates';
 
-  // Initialize notifications plugin
+  // Initialization: Sets up the plugin, channels, and timezone data
   static Future<void> initialize() async {
+    // We use the app launcher icon for notifications
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings("@drawable/ic_launcher");
     const DarwinInitializationSettings iosSettings =
@@ -47,6 +64,7 @@ class LocalNotificationService {
       windows: windowsSettings,
     );
 
+    // Initialize the plugin and set up the notification tap handler
     await _notificationsPlugin.initialize(
       initializationSettings,
       onDidReceiveNotificationResponse: (details) {
@@ -54,16 +72,18 @@ class LocalNotificationService {
       },
     );
 
-    // Create notification channels for Android
+    // On Android, create all notification channels and groups
     if (!kIsWeb) {
       await _createNotificationChannels();
     }
 
+    // Always initialize timezone data for scheduling
     tz.initializeTimeZones();
   }
 
+  // Creates all notification channel groups and channels for Android
   static Future<void> _createNotificationChannels() async {
-    // Task Group
+    // Each group is created for logical separation in Android settings
     await _notificationsPlugin
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
@@ -165,12 +185,14 @@ class LocalNotificationService {
     );
   }
 
+  // Helper to create a single notification channel
   static Future<void> _createNotificationChannel(
     String channelId,
     String channelName,
     String description,
     String groupId,
   ) async {
+    // We use high importance and vibration for all channels by default
     final AndroidNotificationChannel channel = AndroidNotificationChannel(
       channelId,
       channelName,
@@ -187,30 +209,32 @@ class LocalNotificationService {
         ?.createNotificationChannel(channel);
   }
 
+  // Handles what happens when a user taps a notification
   static void _handleNotificationTap(NotificationResponse details) {
     if (details.payload != null) {
-      // TODO: Implement navigation based on payload type
+      // We use payloads to determine navigation
       final String payload = details.payload!;
       if (payload.startsWith('task_')) {
-        // Navigate to task details
+        // TODO: Navigate to task details screen
       } else if (payload.startsWith('shopping_')) {
-        // Navigate to shopping list
+        // TODO: Navigate to shopping list
       } else if (payload.startsWith('chat_')) {
-        // Navigate to chat screen
+        // TODO: Navigate to chat screen
       }
     }
   }
 
-  // Schedules task reminder notification
+  // Schedules a notification to remind the user about a task
   static Future<void> scheduleTaskReminder(String taskId, String taskName,
       DateTime dueDate, int leadTimeDays) async {
-    // Check if the platform is web and show a snackbar instead of a notification
+    // On web, we just print instead of scheduling
     if (kIsWeb) {
       print(
           '[Web Stub] schedule reminder for task: $taskName, due in $leadTimeDays days');
       return;
     }
 
+    // We use the timezone package to ensure correct scheduling
     final scheduledTime = tz.TZDateTime.from(
         dueDate.subtract(Duration(days: leadTimeDays)), tz.local);
     await _notificationsPlugin.zonedSchedule(
@@ -234,9 +258,8 @@ class LocalNotificationService {
     );
   }
 
-  // Cancels a scheduled task reminder
+  // Cancels a scheduled task reminder by taskId
   static void cancelTaskReminder(String taskId) {
-    // Check if the platform is web and show a snackbar instead of a notification
     if (kIsWeb) {
       print('[Web Stub] cancel reminder for task: $taskId');
       return;
@@ -246,7 +269,7 @@ class LocalNotificationService {
     _notificationsPlugin.cancel(notificationId);
   }
 
-  // Shows expense notification
+  // Shows a notification when an expense is added
   static Future<void> sendExpenseNotification(
       double amount, String category) async {
     if (kIsWeb) {
@@ -274,15 +297,13 @@ class LocalNotificationService {
     );
   }
 
-  // Shows task notification
+  // Shows a notification for a task event (e.g., assigned, completed)
   static Future<void> sendTaskNotification({
     required String title,
     required String body,
     String? payload,
   }) async {
-    // Check if the platform is web and show a snackbar instead of a notification
     if (kIsWeb) {
-      // Show a snackbar instead of a notification
       print('[Web Notification] $title: $body');
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.maybeOf(navigatorKey.currentContext!)
@@ -313,7 +334,7 @@ class LocalNotificationService {
     );
   }
 
-  // Schedule shopping reminders - daily shopping list summary
+  // Schedules a daily shopping reminder for the user
   static Future<void> scheduleShoppingReminder({
     required String householdID,
     required String userID,
@@ -326,6 +347,7 @@ class LocalNotificationService {
       return;
     }
 
+    // Query Firestore for the user's shopping list to count items
     final snap = await FirebaseFirestore.instance
         .collection('household')
         .doc(householdID)
@@ -336,6 +358,7 @@ class LocalNotificationService {
         .get();
     final count = snap.docs.length;
 
+    // Schedule for the next occurrence of the specified time
     final now = tz.TZDateTime.now(tz.local);
     var scheduledTime = tz.TZDateTime(
       tz.local,
@@ -373,7 +396,7 @@ class LocalNotificationService {
     );
   }
 
-  // Cancel shopping reminders
+  // Cancels the daily shopping reminder
   static Future<void> cancelShoppingReminder() async {
     if (kIsWeb) {
       print('[Web Stub] cancel shopping reminder');
@@ -382,7 +405,7 @@ class LocalNotificationService {
     await _notificationsPlugin.cancel(1000);
   }
 
-  // Notification for shopping list item added
+  // Shows a notification when a shopping item is added
   static Future<void> sendShoppingItemAddedNotification(String itemName) async {
     if (kIsWeb) {
       print('[Web Stub] Shopping item added: $itemName');
@@ -390,7 +413,6 @@ class LocalNotificationService {
     }
 
     await _notificationsPlugin.show(
-      // Use the hash of the name so each item gets a unique ID
       itemName.hashCode,
       'Item Added',
       'You added "$itemName" to your shopping list.',
@@ -409,7 +431,7 @@ class LocalNotificationService {
     );
   }
 
-  // Task point notifications
+  // Shows a notification when points are earned for a task
   static Future<void> sendTaskPointsNotification(
       String taskName, int points) async {
     if (kIsWeb) {
@@ -438,7 +460,7 @@ class LocalNotificationService {
     );
   }
 
-  // Household update notifications
+  // Shows a notification for household updates
   static Future<void> sendHouseholdUpdateNotification(
       String title, String message) async {
     if (kIsWeb) {
@@ -466,14 +488,14 @@ class LocalNotificationService {
     );
   }
 
-  // Weekly household report notification
+  // Schedules a weekly household report notification (Sunday 9am)
   static Future<void> scheduleWeeklyHouseholdReport(String householdId) async {
     if (kIsWeb) {
       print('[Web Stub] Schedule weekly report for household: $householdId');
       return;
     }
 
-    // Schedule for Sunday at 9:00 AM
+    // Find the next Sunday at 9am
     final now = tz.TZDateTime.now(tz.local);
     var scheduledDate = tz.TZDateTime(
       tz.local,
@@ -515,7 +537,7 @@ class LocalNotificationService {
     );
   }
 
-  // Chat message notifications
+  // Shows a notification for a new chat message
   static Future<void> sendChatMessageNotification(String sender, String message,
       {String? chatId}) async {
     if (kIsWeb) {
@@ -523,6 +545,7 @@ class LocalNotificationService {
       return;
     }
 
+    // Use chatId for grouping if available, otherwise use a timestamp
     final int notificationId = chatId != null
         ? chatId.hashCode
         : DateTime.now().millisecondsSinceEpoch ~/ 1000;
@@ -547,7 +570,7 @@ class LocalNotificationService {
     );
   }
 
-  // Cancel all notifications for a specific channel
+  // Cancels all notifications for a specific channel
   static Future<void> cancelChannelNotifications(String channelId) async {
     if (kIsWeb) {
       print('[Web Stub] Cancel notifications for channel: $channelId');

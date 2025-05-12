@@ -3,6 +3,19 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'services/household_expense_service.dart';
 
+// This file implements the main expense tracking screen for Chorewars.
+// It allows users to view, add, and analyze household expenses and budgets.
+//
+// Key design decisions:
+// - Uses a stateful widget to manage budget, expenses, and loading state.
+// - Integrates with a household expense service for Firestore operations.
+// - Provides a pie chart and legend for visualizing expenses by category.
+// - UI adapts for small and large screens.
+// - Prompts users to set a budget if none exists.
+// - All user actions (add/update expense, update budget) are handled with dialogs and feedback.
+//
+// If you add new expense features, update the UI and service logic here.
+
 class ExpenseTracking extends StatefulWidget {
   const ExpenseTracking({super.key});
 

@@ -1,3 +1,18 @@
+// =========================
+// household_members_screen.dart
+// =========================
+// This file implements the household members management screen for Chorewars.
+// It allows users to view, invite, and manage household members and household info.
+//
+// Key design decisions:
+// - Integrates with Firestore and Firebase Auth for household and member data.
+// - UI supports inviting members, editing household name, and showing member list.
+// - Uses HouseholdService for Firestore logic abstraction.
+//
+// Contributor notes:
+// - If you add new member features, update both the UI and Firestore logic.
+// - Keep comments up to date for onboarding new contributors.
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';

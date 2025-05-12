@@ -1,3 +1,18 @@
+// =========================
+// home_screen.dart
+// =========================
+// This file implements the main home screen for Chorewars.
+// It displays the user's tasks, allows filtering, and integrates with notifications.
+//
+// Key design decisions:
+// - Integrates with Firestore and Firebase Auth for task and user data.
+// - UI supports filtering tasks by status and displays them using SquareCard widgets.
+// - Initializes local notifications for reminders and updates.
+//
+// Contributor notes:
+// - If you add new task features or filters, update both the UI and Firestore logic.
+// - Keep comments up to date for onboarding new contributors.
+
 import 'Data/Task.dart';
 import 'SquareCard.dart';
 import 'package:flutter/material.dart';
@@ -33,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
         .collection('users')
         .doc(user.uid)
         .get();
-    
+
     if (userDoc.exists) {
       setState(() {
         householdID = userDoc.get('household_id');

@@ -1,3 +1,19 @@
+// =========================
+// DatabaseDemo.dart
+// =========================
+// This file demonstrates basic Firestore database operations in Chorewars.
+// It allows users to add and retrieve tasks from Firestore for demo/testing purposes.
+//
+// Key design decisions:
+// - Uses Firestore for storing and retrieving simple task data.
+// - UI provides input for adding tasks and displays a list of tasks.
+// - Error handling is shown via SnackBar for user feedback.
+//
+// Contributor notes:
+// - This file is for demo/testing and is not part of the main app flow.
+// - Use as a reference for Firestore CRUD operations.
+// - Keep comments up to date for onboarding new contributors.
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -18,16 +34,21 @@ class _DatabaseDemoState extends State<DatabaseDemo> {
         'taskName': task,
         'timestamp': FieldValue.serverTimestamp(),
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Task Saved!')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Task Saved!')));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
   Future<List<Map<String, dynamic>>> retrieveDataOnce() async {
     try {
-      QuerySnapshot querySnapshot = await _firestore.collection('tasks').orderBy('timestamp').get();
-      return querySnapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+      QuerySnapshot querySnapshot =
+          await _firestore.collection('tasks').orderBy('timestamp').get();
+      return querySnapshot.docs
+          .map((doc) => doc.data() as Map<String, dynamic>)
+          .toList();
     } catch (e) {
       print("Error getting data: $e");
       return [];
@@ -77,7 +98,8 @@ class _DatabaseDemoState extends State<DatabaseDemo> {
                     return const Center(child: CircularProgressIndicator());
                   }
                   if (snapshot.hasError) {
-                    return Center(child: Text('Error: ${snapshot.error.toString()}'));
+                    return Center(
+                        child: Text('Error: ${snapshot.error.toString()}'));
                   }
                   if (!snapshot.hasData || snapshot.data!.isEmpty) {
                     return const Center(child: Text('No tasks found.'));
@@ -89,8 +111,8 @@ class _DatabaseDemoState extends State<DatabaseDemo> {
                       return ListTile(
                         title: Text(tasks[index]['taskName']),
                         subtitle: Text(
-                            tasks[index]['timestamp']?.toDate().toString() ?? 'No timestamp'
-                        ),
+                            tasks[index]['timestamp']?.toDate().toString() ??
+                                'No timestamp'),
                       );
                     },
                   );

@@ -1,3 +1,15 @@
+// This file defines the main home page for Chorewars.
+// It manages navigation between the app's main sections (Home, Calendar, Expenses, Points, Shopping).
+//
+// Key design decisions:
+// - Uses a PageView and BottomNavigationBar for smooth navigation.
+// - Keeps track of the selected tab and user state.
+// - Integrates with Firebase Auth for user management.
+// - Provides quick access to household, chat, and profile screens.
+// - Uses a stream for dynamic app bar titles based on household state.
+//
+// If you add new main sections, update the navigation logic and UI here.
+
 // Import screens and services
 import 'CalenderScreen.dart';
 import 'Chat.dart';

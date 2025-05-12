@@ -1,3 +1,17 @@
+// =========================
+// SquareCard2.dart
+// =========================
+// This file defines the SquareCard2 widget, a variant of the SquareCard for displaying information in a square card format.
+// Used for alternate card layouts or additional features.
+//
+// Key design decisions:
+// - Provides a reusable card layout for displaying content in a square format.
+// - Can be customized for different types of content or features.
+//
+// Contributor notes:
+// - If you add new card features, update the UI here.
+// - Keep comments up to date for onboarding new contributors.
+
 import 'package:flutter/material.dart';
 
 class SquareCard2 extends StatelessWidget {

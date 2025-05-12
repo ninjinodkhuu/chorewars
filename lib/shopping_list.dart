@@ -1,12 +1,17 @@
-// Import required Flutter and Firebase packages
+// =========================
+// shopping_list.dart
+// =========================
+// This file is for the shopping list screen in Chorewars.
+// Here, you can add stuff you need to buy, mark things as done, and even turn items into expenses.
+
+// Import Flutter and Firebase packages for UI and backend
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'local_notifications.dart';
-import 'services/household_shopping_service.dart';
+import 'local_notifications.dart'; // For local notification features
+import 'services/household_shopping_service.dart'; // Handles Firestore logic
 
-/// A widget that displays and manages the household shopping list
-/// Allows users to add, edit, delete, and mark items as complete
+// Main widget for the shopping list screen
 class ShoppingList extends StatefulWidget {
   const ShoppingList({super.key});
 
@@ -14,23 +19,30 @@ class ShoppingList extends StatefulWidget {
   State<ShoppingList> createState() => _ShoppingListState();
 }
 
+// State class for ShoppingList
 class _ShoppingListState extends State<ShoppingList> {
-  // Controllers for user input
-  final TextEditingController _itemController = TextEditingController();  String _selectedCategory = 'Food';
+  // Controller for the item input field
+  final TextEditingController _itemController = TextEditingController();
+  // Default category for new items
+  String _selectedCategory = 'Food';
+  // Stores the current household ID
   String? householdId;
+  // Loading state for the screen
   bool isLoading = true;
+  // Whether shopping reminder is enabled
   bool _shoppingReminderEnabled = false;
+  // Time for the shopping reminder
   TimeOfDay _shoppingReminderTime = const TimeOfDay(hour: 9, minute: 0);
 
   @override
   void initState() {
     super.initState();
-    _initializeHousehold();
-    _loadNotificationPreferences();
-    LocalNotificationService.initialize();
+    _initializeHousehold(); // Get household ID
+    _loadNotificationPreferences(); // Load reminder settings
+    LocalNotificationService.initialize(); // Set up notifications
   }
 
-  /// Initialize the household ID for the shopping list
+  // Get the household ID from Firestore
   Future<void> _initializeHousehold() async {
     try {
       householdId = await HouseholdShoppingService.getCurrentHouseholdId();
@@ -45,11 +57,10 @@ class _ShoppingListState extends State<ShoppingList> {
     }
   }
 
-  // Load notification preferences from Firestore
+  // Load shopping reminder preferences from Firestore
   Future<void> _loadNotificationPreferences() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
     try {
       final prefsDoc = await FirebaseFirestore.instance
           .collection('users')
@@ -57,15 +68,15 @@ class _ShoppingListState extends State<ShoppingList> {
           .collection('notificationSettings')
           .doc('shopping')
           .get();
-
       final data = prefsDoc.data() ?? {};
       setState(() {
-        _shoppingReminderEnabled = data['shoppingReminderEnabled'] as bool? ?? false;
+        _shoppingReminderEnabled =
+            data['shoppingReminderEnabled'] as bool? ?? false;
         final int hour = data['shoppingReminderHour'] as int? ?? 9;
-        final int minute = data['shoppingReminderMinute'] as int? ?? 0;        _shoppingReminderTime = TimeOfDay(hour: hour, minute: minute);
+        final int minute = data['shoppingReminderMinute'] as int? ?? 0;
+        _shoppingReminderTime = TimeOfDay(hour: hour, minute: minute);
       });
-
-      // Setup or cancel reminder based on preferences
+      // If enabled, set up the reminder
       if (_shoppingReminderEnabled) {
         await _setupShoppingReminder(user.uid);
       }
@@ -74,18 +85,13 @@ class _ShoppingListState extends State<ShoppingList> {
     }
   }
 
-  // Setup shopping reminder
+  // Set up a daily shopping reminder notification
   Future<void> _setupShoppingReminder(String uid) async {
-    final userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
-    
+    final userDoc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
     if (!userDoc.exists) return;
-    
     final householdId = userDoc.get('household_id') as String?;
     if (householdId == null) return;
-
     await LocalNotificationService.scheduleShoppingReminder(
       householdID: householdId,
       userID: uid,
@@ -94,7 +100,7 @@ class _ShoppingListState extends State<ShoppingList> {
     );
   }
 
-  // Save notification preferences
+  // Save shopping reminder preferences to Firestore
   Future<void> _saveNotificationPreferences(String uid) async {
     await FirebaseFirestore.instance
         .collection('users')
@@ -102,25 +108,21 @@ class _ShoppingListState extends State<ShoppingList> {
         .collection('notificationSettings')
         .doc('shopping')
         .set({
-          'shoppingReminderEnabled': _shoppingReminderEnabled,
-          'shoppingReminderHour': _shoppingReminderTime.hour,
-          'shoppingReminderMinute': _shoppingReminderTime.minute,
-        }, SetOptions(merge: true));
+      'shoppingReminderEnabled': _shoppingReminderEnabled,
+      'shoppingReminderHour': _shoppingReminderTime.hour,
+      'shoppingReminderMinute': _shoppingReminderTime.minute,
+    }, SetOptions(merge: true));
   }
 
   // ===========================
   // Use Case 6.1: List Management Interface
   // ===========================
 
-  /// Adds a new item to the shopping list
-  /// @param item: Name of the item to add
-  /// @param category: Category of the item (defaults to 'Food')
+  // Add a new item to the shopping list
   Future<void> addItem(String item, {String category = 'Food'}) async {
     if (householdId == null) return;
-
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
     try {
       await HouseholdShoppingService.addItem(
         householdId: householdId!,
@@ -131,37 +133,30 @@ class _ShoppingListState extends State<ShoppingList> {
     } catch (e) {
       print('Error adding item: $e');
     }
-
-    // Send notification for new item
+    // Notify users that a new item was added
     await LocalNotificationService.sendShoppingItemAddedNotification(item);
   }
 
-  /// Toggles the completion status of a shopping list item
-  /// @param itemId: ID of the item to toggle
-  /// @param currentStatus: Current completion status of the item
+  // Toggle the done status of a shopping list item
   Future<void> toggleDone(String itemId, bool currentStatus) async {
     if (householdId == null) return;
-
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
     try {
-      // First get the item details for notification
+      // Get item details for notification
       final doc = await FirebaseFirestore.instance
           .collection('households')
           .doc(householdId)
           .collection('shopping_list')
           .doc(itemId)
           .get();
-
       await HouseholdShoppingService.toggleItemDone(
         householdId: householdId!,
         itemId: itemId,
         currentStatus: currentStatus,
         completedBy: user.uid,
       );
-
-      // Send notification if item is marked as done
+      // If marking as done, send a notification
       if (!currentStatus && doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
         final itemName = data['item'] as String;
@@ -176,26 +171,22 @@ class _ShoppingListState extends State<ShoppingList> {
     }
   }
 
-  /// Deletes an item from the shopping list
-  /// @param itemId: ID of the item to delete
+  // Delete an item from the shopping list
   Future<void> deleteItem(String itemId) async {
     if (householdId == null) return;
-
     try {
-      // Get item name before deletion for notification
+      // Get item name before deleting for notification
       final doc = await FirebaseFirestore.instance
           .collection('households')
           .doc(householdId)
           .collection('shopping_list')
           .doc(itemId)
           .get();
-
       await HouseholdShoppingService.deleteItem(
         householdId: householdId!,
         itemId: itemId,
       );
-
-      // Show notification for item deletion
+      // Notify users that an item was deleted
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
         final itemName = data['item'] as String;
@@ -210,16 +201,10 @@ class _ShoppingListState extends State<ShoppingList> {
     }
   }
 
-  /// Updates the details of a shopping list item
-  /// @param itemId: ID of the item to update
-  /// @param quantity: New quantity value
-  /// @param unit: New unit value
-  /// @param price: New price value
-  /// @param category: New category value
+  // Update the details of a shopping list item
   Future<void> updateItemDetails(String itemId, int quantity, String unit,
       double price, String category) async {
     if (householdId == null) return;
-
     try {
       await HouseholdShoppingService.updateItem(
         householdId: householdId!,
@@ -236,28 +221,20 @@ class _ShoppingListState extends State<ShoppingList> {
     }
   }
 
-  /// Shows a modal bottom sheet with item details and editing options
-  /// @param context: Build context for showing the modal
-  /// @param itemId: ID of the item being edited
-  /// @param itemName: Name of the item
-  /// @param quantity: Current quantity
-  /// @param unit: Current unit
-  /// @param price: Current price
-  /// @param selectedCategory: Current category
+  // Show a modal to edit item details and convert to expense
   void showItemDetails(BuildContext context, String itemId, String itemName,
       int quantity, String unit, double price, String selectedCategory) {
     String currentCategory = selectedCategory;
     final TextEditingController priceController =
         TextEditingController(text: price > 0 ? price.toString() : '');
-
-    /// Helper function to update item details
+    // Helper to update item details
     void updateDetails(String category, double? newPrice) {
       if (newPrice != null) {
         updateItemDetails(itemId, 1, '', newPrice, category);
       }
     }
 
-    // Show the modal bottom sheet with item details
+    // Show the modal bottom sheet
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -284,6 +261,7 @@ class _ShoppingListState extends State<ShoppingList> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Header with item name
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -303,11 +281,13 @@ class _ShoppingListState extends State<ShoppingList> {
                       ),
                     ),
                   ),
+                  // Editable fields for category and price
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Category dropdown
                         const Text(
                           'Category',
                           style: TextStyle(
@@ -349,6 +329,7 @@ class _ShoppingListState extends State<ShoppingList> {
                           }).toList(),
                         ),
                         const SizedBox(height: 16),
+                        // Price input
                         const Text(
                           'Amount',
                           style: TextStyle(
@@ -377,6 +358,7 @@ class _ShoppingListState extends State<ShoppingList> {
                           },
                         ),
                         const SizedBox(height: 24),
+                        // Buttons for closing or converting to expense
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
@@ -463,17 +445,12 @@ class _ShoppingListState extends State<ShoppingList> {
     );
   }
 
-  /// Converts a shopping list item to an expense
-  /// @param itemId: ID of the item to convert
-  /// @param category: Category for the expense
-  /// @param price: Amount of the expense
+  // Convert a shopping list item to an expense
   Future<void> convertToExpense(
       String itemId, String category, double price) async {
     if (householdId == null) return;
-
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
     try {
       await HouseholdShoppingService.convertToExpense(
         householdId: householdId!,
@@ -489,10 +466,10 @@ class _ShoppingListState extends State<ShoppingList> {
 
   @override
   Widget build(BuildContext context) {
-    // Get current user ID
+    // Get the current user
     final User? user = FirebaseAuth.instance.currentUser;
     final String uid = user?.uid ?? '';
-
+    // Main UI for the shopping list screen
     return Scaffold(
       backgroundColor: Colors.blue[50],
       appBar: AppBar(
@@ -505,26 +482,22 @@ class _ShoppingListState extends State<ShoppingList> {
           ),
         ),
         actions: [
-          // Notification Settings Button
+          // Button to set shopping reminder time
           IconButton(
             icon: const Icon(Icons.notifications),
             onPressed: () async {
               if (user == null) return;
-              
               final picked = await showTimePicker(
                 context: context,
                 initialTime: _shoppingReminderTime,
               );
-              
               if (picked != null) {
                 setState(() {
                   _shoppingReminderEnabled = true;
                   _shoppingReminderTime = picked;
                 });
-                
                 await _setupShoppingReminder(user.uid);
                 await _saveNotificationPreferences(user.uid);
-                
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -545,55 +518,55 @@ class _ShoppingListState extends State<ShoppingList> {
       ),
       body: Center(
         child: isLoading
-            ? const CircularProgressIndicator()
+            ? const CircularProgressIndicator() // Show loading spinner
             : Column(
                 children: [
-                  // Shopping reminder settings
-            Card(
-              margin: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: SwitchListTile(
-                  title: const Text('Daily Shopping Reminder'),
-                  subtitle: Text(
-                    _shoppingReminderEnabled
-                        ? 'Every day at ${_shoppingReminderTime.format(context)}'
-                        : 'Tap to set reminder time',
+                  // Card for shopping reminder settings
+                  Card(
+                    margin: const EdgeInsets.all(16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: SwitchListTile(
+                        title: const Text('Daily Shopping Reminder'),
+                        subtitle: Text(
+                          _shoppingReminderEnabled
+                              ? 'Every day at ${_shoppingReminderTime.format(context)}'
+                              : 'Tap to set reminder time',
+                        ),
+                        value: _shoppingReminderEnabled,
+                        onChanged: (user != null)
+                            ? (enabled) async {
+                                setState(
+                                    () => _shoppingReminderEnabled = enabled);
+                                if (enabled) {
+                                  final picked = await showTimePicker(
+                                    context: context,
+                                    initialTime: _shoppingReminderTime,
+                                  );
+                                  if (picked != null) {
+                                    setState(
+                                        () => _shoppingReminderTime = picked);
+                                    await _setupShoppingReminder(user.uid);
+                                  }
+                                } else {
+                                  await LocalNotificationService
+                                      .cancelShoppingReminder();
+                                }
+                                await _saveNotificationPreferences(user.uid);
+                              }
+                            : null,
+                      ),
+                    ),
                   ),
-                  value: _shoppingReminderEnabled,
-                  onChanged: (user != null)
-                      ? (enabled) async {
-                          setState(() => _shoppingReminderEnabled = enabled);
-                          
-                          if (enabled) {
-                            final picked = await showTimePicker(
-                              context: context,
-                              initialTime: _shoppingReminderTime,
-                            );
-                            if (picked != null) {
-                              setState(() => _shoppingReminderTime = picked);
-                              await _setupShoppingReminder(user.uid);
-                            }
-                          } else {
-                            await LocalNotificationService.cancelShoppingReminder();
-                          }
-                          
-                          await _saveNotificationPreferences(user.uid);
-                        }
-                      : null,
-                ),
-              ),
-            ),
-            
-            // Add Item Section
+                  // Section for adding a new item
                   Container(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
                       children: [
-                        // Input Card for new items
+                        // Card for item input
                         Card(
                           elevation: 2,
                           shape: RoundedRectangleBorder(
@@ -603,7 +576,7 @@ class _ShoppingListState extends State<ShoppingList> {
                             padding: const EdgeInsets.all(16.0),
                             child: Column(
                               children: [
-                                // Item name input field
+                                // Input for item name
                                 TextField(
                                   controller: _itemController,
                                   decoration: InputDecoration(
@@ -616,7 +589,7 @@ class _ShoppingListState extends State<ShoppingList> {
                                   ),
                                 ),
                                 const SizedBox(height: 16),
-                                // Category dropdown
+                                // Dropdown for category
                                 Container(
                                   decoration: BoxDecoration(
                                     border:
@@ -628,8 +601,7 @@ class _ShoppingListState extends State<ShoppingList> {
                                   child: DropdownButton<String>(
                                     isExpanded: true,
                                     value: _selectedCategory,
-                                    underline:
-                                        Container(), // Remove the default underline
+                                    underline: Container(), // Remove underline
                                     items: <String>[
                                       'Food',
                                       'Transport',
@@ -651,7 +623,7 @@ class _ShoppingListState extends State<ShoppingList> {
                                   ),
                                 ),
                                 const SizedBox(height: 16),
-                                // Add Item button
+                                // Button to add item
                                 ElevatedButton(
                                   onPressed: () {
                                     if (uid.isEmpty) {
@@ -675,7 +647,6 @@ class _ShoppingListState extends State<ShoppingList> {
                                       );
                                       return;
                                     }
-
                                     addItem(_itemController.text.trim(),
                                         category: _selectedCategory);
                                     _itemController.clear();
@@ -701,10 +672,10 @@ class _ShoppingListState extends State<ShoppingList> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  // Shopping List Items
+                  // List of shopping items
                   Expanded(
                     child: StreamBuilder<QuerySnapshot>(
-                      // Listen to shopping list updates in real-time
+                      // Listen for shopping list changes
                       stream: HouseholdShoppingService.streamShoppingList(
                           householdId!),
                       builder: (context, snapshot) {
@@ -712,8 +683,7 @@ class _ShoppingListState extends State<ShoppingList> {
                           return const Center(
                               child: CircularProgressIndicator());
                         }
-
-                        // Sort items by completion status
+                        // Sort items by done status
                         final items = snapshot.data!.docs;
                         final doneItems = items.where((item) {
                           final data = item.data() as Map<String, dynamic>;
@@ -726,8 +696,7 @@ class _ShoppingListState extends State<ShoppingList> {
                               !data['done'];
                         }).toList();
                         final sortedItems = [...notDoneItems, ...doneItems];
-
-                        // Show empty state if no items
+                        // Show message if list is empty
                         if (sortedItems.isEmpty) {
                           return Center(
                             child: Column(
@@ -758,8 +727,7 @@ class _ShoppingListState extends State<ShoppingList> {
                             ),
                           );
                         }
-
-                        // List of shopping items
+                        // Build the list of shopping items
                         return ListView.builder(
                           padding: const EdgeInsets.all(16),
                           itemCount: sortedItems.length,
@@ -781,8 +749,7 @@ class _ShoppingListState extends State<ShoppingList> {
                             final category = data.containsKey('category')
                                 ? data['category']
                                 : 'Food';
-
-                            // Dismissible item card with delete functionality
+                            // Dismissible card for deleting items
                             return Dismissible(
                               key: Key(itemId),
                               direction: DismissDirection.endToStart,
@@ -834,8 +801,7 @@ class _ShoppingListState extends State<ShoppingList> {
                                         try {
                                           await toggleDone(itemId, itemDone);
                                           if (!itemDone) {
-                                            // Show item details dialog when marking as done
-                                            // ignore: use_build_context_synchronously
+                                            // Show details modal when marking as done
                                             showItemDetails(
                                                 context,
                                                 itemId,
@@ -845,7 +811,6 @@ class _ShoppingListState extends State<ShoppingList> {
                                                 price,
                                                 category);
                                           }
-
                                           ScaffoldMessenger.of(context)
                                               .showSnackBar(
                                             SnackBar(
@@ -908,6 +873,7 @@ class _ShoppingListState extends State<ShoppingList> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
+                                      // Show quantity, unit, and price
                                       Text(
                                         unit.isNotEmpty
                                             ? (price > 0
@@ -921,6 +887,7 @@ class _ShoppingListState extends State<ShoppingList> {
                                           color: Colors.grey[600],
                                         ),
                                       ),
+                                      // Show category label
                                       Container(
                                         margin: const EdgeInsets.only(top: 4),
                                         padding: const EdgeInsets.symmetric(
@@ -962,3 +929,4 @@ class _ShoppingListState extends State<ShoppingList> {
     );
   }
 }
+// End of shopping_list.dart

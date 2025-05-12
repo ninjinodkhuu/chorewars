@@ -1,3 +1,15 @@
+// This is the main entry point for the Chorewars Flutter app.
+// It handles all global initialization, including Firebase, notifications, and app-wide services.
+//
+// Key design decisions:
+// - We use a try-catch block to ensure any initialization error is surfaced to the user.
+// - All async setup (Firebase, Firestore, notifications) is awaited before runApp.
+// - Notification and FCM setup is separated into helper functions for clarity.
+// - The app uses a global navigator key for navigation from notifications.
+// - If initialization fails, a fallback error UI is shown.
+//
+// If you add new global services, initialize them here before runApp.
+
 // Import the authentication page and required Flutter/Firebase packages
 import 'auth_page.dart';
 import 'package:flutter/material.dart';

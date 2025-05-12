@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'local_notifications.dart';
 import 'services/household_shopping_service.dart';
-import 'services/household_expense_service.dart';
 
 /// A widget that displays and manages the household shopping list
 /// Allows users to add, edit, delete, and mark items as complete
@@ -17,17 +16,21 @@ class ShoppingList extends StatefulWidget {
 
 class _ShoppingListState extends State<ShoppingList> {
   // Controllers for user input
-  final TextEditingController _itemController = TextEditingController();
-  String _selectedCategory = 'Food';
+  final TextEditingController _itemController = TextEditingController();  String _selectedCategory = 'Food';
   String? householdId;
   bool isLoading = true;
+  bool _shoppingReminderEnabled = false;
+  TimeOfDay _shoppingReminderTime = const TimeOfDay(hour: 9, minute: 0);
 
   @override
   void initState() {
     super.initState();
     _initializeHousehold();
+    _loadNotificationPreferences();
+    LocalNotificationService.initialize();
   }
 
+  /// Initialize the household ID for the shopping list
   Future<void> _initializeHousehold() async {
     try {
       householdId = await HouseholdShoppingService.getCurrentHouseholdId();
@@ -40,16 +43,6 @@ class _ShoppingListState extends State<ShoppingList> {
         });
       }
     }
-  }
-  bool _shoppingReminderEnabled = false;
-  TimeOfDay _shoppingReminderTime = const TimeOfDay(hour: 9, minute: 0);
-  bool _prefsLoaded = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadNotificationPreferences();
-    LocalNotificationService.initialize();
   }
 
   // Load notification preferences from Firestore
@@ -69,9 +62,7 @@ class _ShoppingListState extends State<ShoppingList> {
       setState(() {
         _shoppingReminderEnabled = data['shoppingReminderEnabled'] as bool? ?? false;
         final int hour = data['shoppingReminderHour'] as int? ?? 9;
-        final int minute = data['shoppingReminderMinute'] as int? ?? 0;
-        _shoppingReminderTime = TimeOfDay(hour: hour, minute: minute);
-        _prefsLoaded = true;
+        final int minute = data['shoppingReminderMinute'] as int? ?? 0;        _shoppingReminderTime = TimeOfDay(hour: hour, minute: minute);
       });
 
       // Setup or cancel reminder based on preferences
@@ -80,7 +71,6 @@ class _ShoppingListState extends State<ShoppingList> {
       }
     } catch (e) {
       print('Error loading notification preferences: $e');
-      setState(() => _prefsLoaded = true);
     }
   }
 
@@ -156,33 +146,23 @@ class _ShoppingListState extends State<ShoppingList> {
     if (user == null) return;
 
     try {
+      // First get the item details for notification
+      final doc = await FirebaseFirestore.instance
+          .collection('households')
+          .doc(householdId)
+          .collection('shopping_list')
+          .doc(itemId)
+          .get();
+
       await HouseholdShoppingService.toggleItemDone(
         householdId: householdId!,
         itemId: itemId,
         currentStatus: currentStatus,
         completedBy: user.uid,
       );
-    } catch (e) {
-      print('Error toggling item: $e');
-    }
-  Future<void> toggleDone(String uid, String itemId, bool currentStatus) async {
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('shoppinglistinfohere')
-        .doc(itemId)
-        .update({'done': !currentStatus});
 
-    // If item is being marked as done, show notification
-    if (!currentStatus) {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('shoppinglistinfohere')
-          .doc(itemId)
-          .get();
-      
-      if (doc.exists) {
+      // Send notification if item is marked as done
+      if (!currentStatus && doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
         final itemName = data['item'] as String;
         await LocalNotificationService.sendTaskNotification(
@@ -191,6 +171,8 @@ class _ShoppingListState extends State<ShoppingList> {
           payload: itemId,
         );
       }
+    } catch (e) {
+      print('Error toggling item: $e');
     }
   }
 
@@ -200,38 +182,31 @@ class _ShoppingListState extends State<ShoppingList> {
     if (householdId == null) return;
 
     try {
+      // Get item name before deletion for notification
+      final doc = await FirebaseFirestore.instance
+          .collection('households')
+          .doc(householdId)
+          .collection('shopping_list')
+          .doc(itemId)
+          .get();
+
       await HouseholdShoppingService.deleteItem(
         householdId: householdId!,
         itemId: itemId,
       );
+
+      // Show notification for item deletion
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        final itemName = data['item'] as String;
+        await LocalNotificationService.sendTaskNotification(
+          title: "Item Removed",
+          body: "'$itemName' has been removed from your shopping list",
+          payload: itemId,
+        );
+      }
     } catch (e) {
       print('Error deleting item: $e');
-    }
-  Future<void> deleteItem(String uid, String itemId) async {
-    // Get item name before deletion for notification
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('shoppinglistinfohere')
-        .doc(itemId)
-        .get();
-
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('shoppinglistinfohere')
-        .doc(itemId)
-        .delete();
-
-    // Show notification for item deletion
-    if (doc.exists) {
-      final data = doc.data() as Map<String, dynamic>;
-      final itemName = data['item'] as String;
-      await LocalNotificationService.sendTaskNotification(
-        title: "Item Removed",
-        body: "'$itemName' has been removed from your shopping list",
-        payload: itemId,
-      );
     }
   }
 

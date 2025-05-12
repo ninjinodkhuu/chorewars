@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'local_notifications.dart';
 import 'services/household_expense_service.dart';
 
 class ExpenseTracking extends StatefulWidget {
@@ -448,8 +446,8 @@ class _ExpenseTrackingState extends State<ExpenseTracking> {
         child: FloatingActionButton(
           backgroundColor: Colors.blue[900],
           onPressed: _addExpense,
-          child: const Icon(Icons.add, color: Colors.white),
           tooltip: 'Add Expense',
+          child: const Icon(Icons.add, color: Colors.white),
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
@@ -629,7 +627,7 @@ class _Badge extends StatelessWidget {
   final double value;
   final bool isTouched;
 
-  const _Badge(this.label, this.color, this.value, this.isTouched, {super.key});
+  const _Badge(this.label, this.color, this.value, this.isTouched);
 
   @override
   Widget build(BuildContext context) {

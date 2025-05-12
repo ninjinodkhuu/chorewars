@@ -32,23 +32,22 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   );
 
   // Log the message here
-  print("Handling a background message: ${message.messageId}");  
+  print("Handling a background message: ${message.messageId}");
 }
 
 // Function to initialize FCM and subscribe to household topic
 Future<void> _initFCM() async {
-  // Request user permission to receive notifications
   await FirebaseMessaging.instance.requestPermission();
-  // Determine user householdID
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) return; // User not logged in
-  final userDoc = await FirebaseFirestore.instance
-      .collection('users')
-      .doc(user.uid)
-      .get();
+  final userDoc =
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+  if (!userDoc.exists || !userDoc.data()!.containsKey('householdID')) {
+    print(
+        'User document missing or householdID not set. Skipping topic subscription.');
+    return;
+  }
   final householdID = userDoc.get('householdID') as String;
-
-  // Subscribe THIS device to the "householdID" topic
   await FirebaseMessaging.instance.subscribeToTopic(householdID);
 }
 
@@ -70,52 +69,49 @@ void _initFCMListeners() {
 /// Entry point of the application
 /// Initializes Firebase and starts the app
 void main() async {
-  // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Configure Firebase options with your project credentials
-  FirebaseOptions options = const FirebaseOptions(
-    apiKey: "AIzaSyA_9SV39BIwuOQULX_mUp0w3c2KdEU5oJ8",
-    appId: "1:13701743979:android:1b0281e61059ce0eb0b82e",
-    projectId: "flutter-expense-tracker-a6400",
-    messagingSenderId: "13701743979",
-    storageBucket: "flutter-expense-tracker-a6400.firebasestorage.app",
-  );
+  try {
+    FirebaseOptions options = const FirebaseOptions(
+      apiKey: "AIzaSyA_9SV39BIwuOQULX_mUp0w3c2KdEU5oJ8",
+      appId: "1:13701743979:android:1b0281e61059ce0eb0b82e",
+      projectId: "flutter-expense-tracker-a6400",
+      messagingSenderId: "13701743979",
+      storageBucket: "flutter-expense-tracker-a6400.firebasestorage.app",
+    );
 
-  // Initialize Firebase with the specified options
-  await Firebase.initializeApp(options: options);
-
-  // Enable Firestore offline persistence
-  FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true);
-  
-  // Request notification permissions (iOS)
-  NotificationSettings settings = await FirebaseMessaging.instance.requestPermission(
-    alert: true,
-    badge: true,
-    sound: true,
-    provisional: false,
-  );
-
-  print('User granted permission: ${settings.authorizationStatus}');
-
-  // iOS will show notifications when app is foregrounded
-  await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
-    alert: true,
-    badge: true,
-    sound: true,
-  );
-
-  // Set Firebase Messaging background handler
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-  // Initialize timezone and notifications
-  tz.initializeTimeZones();
-  LocalNotificationService.initialize();
-  await _initFCM();
-  _initFCMListeners();
-  
-  // Start the application by running MyApp
-  runApp(const MyApp());
+    await Firebase.initializeApp(options: options);
+    FirebaseFirestore.instance.settings =
+        const Settings(persistenceEnabled: true);
+    NotificationSettings settings =
+        await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+      provisional: false,
+    );
+    print('User granted permission: ${settings.authorizationStatus}');
+    await FirebaseMessaging.instance
+        .setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    tz.initializeTimeZones();
+    await LocalNotificationService.initialize();
+    await _initFCM();
+    _initFCMListeners();
+    runApp(const MyApp());
+  } catch (e, stack) {
+    print('Initialization error: $e');
+    print(stack);
+    runApp(MaterialApp(
+      home: Scaffold(
+        body: Center(child: Text('Initialization failed: $e')),
+      ),
+    ));
+  }
 }
 
 /// Root widget of the application

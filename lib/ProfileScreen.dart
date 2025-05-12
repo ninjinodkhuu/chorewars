@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'local_notifications.dart';
 import 'test_notifications.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -187,20 +186,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .collection('settings')
           .doc('notifications')
           .set({
-            'taskReminders': _taskReminderEnabled,
-            'expenseUpdates': _expenseUpdateEnabled,
-            'notificationLeadTime': _notificationLeadTime,
-            'expenseLeadTime': _expenseLeadTime,
-            'taskAssignmentNotifications': _taskAssignmentEnabled,
-            'taskCompletionNotifications': _taskCompletionEnabled,
-            'taskPointNotifications': _taskPointsEnabled,
-            'taskExpirationWarnings': _taskExpirationEnabled,
-            'householdUpdates': _householdUpdatesEnabled,
-            'chatNotifications': _chatNotificationsEnabled,
-            'shoppingListUpdates': _shoppingListUpdatesEnabled,
-            'weeklyReports': _weeklyReportsEnabled,
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+        'taskReminders': _taskReminderEnabled,
+        'expenseUpdates': _expenseUpdateEnabled,
+        'notificationLeadTime': _notificationLeadTime,
+        'expenseLeadTime': _expenseLeadTime,
+        'taskAssignmentNotifications': _taskAssignmentEnabled,
+        'taskCompletionNotifications': _taskCompletionEnabled,
+        'taskPointNotifications': _taskPointsEnabled,
+        'taskExpirationWarnings': _taskExpirationEnabled,
+        'householdUpdates': _householdUpdatesEnabled,
+        'chatNotifications': _chatNotificationsEnabled,
+        'shoppingListUpdates': _shoppingListUpdatesEnabled,
+        'weeklyReports': _weeklyReportsEnabled,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -245,7 +244,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const TestNotifications()),
+                      MaterialPageRoute(
+                          builder: (context) => const TestNotifications()),
                     );
                   },
                   tooltip: 'Test Notifications',
@@ -265,11 +265,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             SwitchListTile(
               title: const Text('Task Reminders'),
-              subtitle: Text(_taskReminderEnabled 
+              subtitle: Text(_taskReminderEnabled
                   ? 'Notify $_notificationLeadTime day(s) before due date'
                   : 'Disabled'),
               value: _taskReminderEnabled,
-              onChanged: (bool value) => setState(() => _taskReminderEnabled = value),
+              onChanged: (bool value) =>
+                  setState(() => _taskReminderEnabled = value),
             ),
             if (_taskReminderEnabled)
               Padding(
@@ -286,7 +287,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     );
                   }).toList(),
                   onChanged: (value) {
-                    if (value != null) setState(() => _notificationLeadTime = value);
+                    if (value != null) {
+                      setState(() => _notificationLeadTime = value);
+                    }
                   },
                 ),
               ),
@@ -294,13 +297,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: const Text('Task Assignments'),
               subtitle: const Text('When someone assigns you a task'),
               value: _taskAssignmentEnabled,
-              onChanged: (value) => setState(() => _taskAssignmentEnabled = value),
+              onChanged: (value) =>
+                  setState(() => _taskAssignmentEnabled = value),
             ),
             SwitchListTile(
               title: const Text('Task Completions'),
               subtitle: const Text('When household members complete tasks'),
               value: _taskCompletionEnabled,
-              onChanged: (value) => setState(() => _taskCompletionEnabled = value),
+              onChanged: (value) =>
+                  setState(() => _taskCompletionEnabled = value),
             ),
             SwitchListTile(
               title: const Text('Point Updates'),
@@ -312,7 +317,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: const Text('Task Expiration Warnings'),
               subtitle: const Text('When tasks are about to expire'),
               value: _taskExpirationEnabled,
-              onChanged: (value) => setState(() => _taskExpirationEnabled = value),
+              onChanged: (value) =>
+                  setState(() => _taskExpirationEnabled = value),
             ),
 
             const Divider(height: 32),
@@ -330,13 +336,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: const Text('Household Updates'),
               subtitle: const Text('Member changes and achievements'),
               value: _householdUpdatesEnabled,
-              onChanged: (value) => setState(() => _householdUpdatesEnabled = value),
+              onChanged: (value) =>
+                  setState(() => _householdUpdatesEnabled = value),
             ),
             SwitchListTile(
               title: const Text('Weekly Reports'),
               subtitle: const Text('Weekly household performance summary'),
               value: _weeklyReportsEnabled,
-              onChanged: (value) => setState(() => _weeklyReportsEnabled = value),
+              onChanged: (value) =>
+                  setState(() => _weeklyReportsEnabled = value),
             ),
 
             const Divider(height: 32),
@@ -354,7 +362,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: const Text('Chat Notifications'),
               subtitle: const Text('Messages and @mentions'),
               value: _chatNotificationsEnabled,
-              onChanged: (value) => setState(() => _chatNotificationsEnabled = value),
+              onChanged: (value) =>
+                  setState(() => _chatNotificationsEnabled = value),
             ),
 
             const Divider(height: 32),
@@ -372,13 +381,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: const Text('Shopping List Updates'),
               subtitle: const Text('When items are added or completed'),
               value: _shoppingListUpdatesEnabled,
-              onChanged: (value) => setState(() => _shoppingListUpdatesEnabled = value),
+              onChanged: (value) =>
+                  setState(() => _shoppingListUpdatesEnabled = value),
             ),
             SwitchListTile(
               title: const Text('Expense Updates'),
               subtitle: const Text('When new expenses are added'),
               value: _expenseUpdateEnabled,
-              onChanged: (value) => setState(() => _expenseUpdateEnabled = value),
+              onChanged: (value) =>
+                  setState(() => _expenseUpdateEnabled = value),
             ),
 
             const SizedBox(height: 24),
@@ -467,7 +478,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         decoration: const InputDecoration(
                           labelText: 'Username',
                           prefixIcon: Icon(Icons.person),
-                          helperText: 'This name will be visible to other members',
+                          helperText:
+                              'This name will be visible to other members',
                         ),
                         onChanged: (value) {
                           setState(() {
@@ -481,7 +493,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         decoration: const InputDecoration(
                           labelText: 'Email Address',
                           prefixIcon: Icon(Icons.email),
-                          helperText: 'Your account email address cannot be changed',
+                          helperText:
+                              'Your account email address cannot be changed',
                         ),
                         readOnly: true,
                         enabled: false,

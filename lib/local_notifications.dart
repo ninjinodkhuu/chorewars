@@ -4,7 +4,6 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -30,27 +29,31 @@ class LocalNotificationService {
 
   // Initialize notifications plugin
   static Future<void> initialize() async {
-    const AndroidInitializationSettings androidSettings = AndroidInitializationSettings("@drawable/ic_launcher");
-    const DarwinInitializationSettings iosSettings = DarwinInitializationSettings();
-    const WindowsInitializationSettings windowsSettings = WindowsInitializationSettings(
+    const AndroidInitializationSettings androidSettings =
+        AndroidInitializationSettings("@drawable/ic_launcher");
+    const DarwinInitializationSettings iosSettings =
+        DarwinInitializationSettings();
+    const WindowsInitializationSettings windowsSettings =
+        WindowsInitializationSettings(
       appName: 'Chorewars',
       appUserModelId: '8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a',
       guid: 'ad0dbfaa-c7ea-4f5e-8bbe-caf269b4170c',
     );
-    
-    InitializationSettings initializationSettings = const InitializationSettings(
+
+    InitializationSettings initializationSettings =
+        const InitializationSettings(
       android: androidSettings,
       iOS: iosSettings,
       windows: windowsSettings,
     );
-    
+
     await _notificationsPlugin.initialize(
       initializationSettings,
       onDidReceiveNotificationResponse: (details) {
         _handleNotificationTap(details);
       },
     );
-    
+
     // Create notification channels for Android
     if (!kIsWeb) {
       await _createNotificationChannels();
@@ -61,28 +64,41 @@ class LocalNotificationService {
 
   static Future<void> _createNotificationChannels() async {
     // Task Group
-    await _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannelGroup(
-      const AndroidNotificationChannelGroup(taskGroup, 'Tasks',
-        description: 'Notifications related to household tasks'),
-    );
+    await _notificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannelGroup(
+          const AndroidNotificationChannelGroup(taskGroup, 'Tasks',
+              description: 'Notifications related to household tasks'),
+        );
 
     // Household Group
-    await _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannelGroup(
-      const AndroidNotificationChannelGroup(householdGroup, 'Household',
-        description: 'Notifications about household updates and reports'),
-    );
+    await _notificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannelGroup(
+          const AndroidNotificationChannelGroup(householdGroup, 'Household',
+              description: 'Notifications about household updates and reports'),
+        );
 
     // Communication Group
-    await _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannelGroup(
-      const AndroidNotificationChannelGroup(communicationGroup, 'Communication',
-        description: 'Chat and communication notifications'),
-    );
+    await _notificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannelGroup(
+          const AndroidNotificationChannelGroup(
+              communicationGroup, 'Communication',
+              description: 'Chat and communication notifications'),
+        );
 
     // Shopping Group
-    await _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannelGroup(
-      const AndroidNotificationChannelGroup(shoppingGroup, 'Shopping',
-        description: 'Shopping list and expense notifications'),
-    );
+    await _notificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannelGroup(
+          const AndroidNotificationChannelGroup(shoppingGroup, 'Shopping',
+              description: 'Shopping list and expense notifications'),
+        );
 
     // Create individual channels
     await _createNotificationChannel(
@@ -166,7 +182,8 @@ class LocalNotificationService {
     );
 
     await _notificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
   }
 
@@ -185,14 +202,17 @@ class LocalNotificationService {
   }
 
   // Schedules task reminder notification
-  static Future<void> scheduleTaskReminder(String taskId, String taskName, DateTime dueDate, int leadTimeDays) async {
+  static Future<void> scheduleTaskReminder(String taskId, String taskName,
+      DateTime dueDate, int leadTimeDays) async {
     // Check if the platform is web and show a snackbar instead of a notification
     if (kIsWeb) {
-      print('[Web Stub] schedule reminder for task: $taskName, due in $leadTimeDays days');
+      print(
+          '[Web Stub] schedule reminder for task: $taskName, due in $leadTimeDays days');
       return;
     }
 
-    final scheduledTime = tz.TZDateTime.from(dueDate.subtract(Duration(days: leadTimeDays)), tz.local);
+    final scheduledTime = tz.TZDateTime.from(
+        dueDate.subtract(Duration(days: leadTimeDays)), tz.local);
     await _notificationsPlugin.zonedSchedule(
       taskId.hashCode,
       'Task Reminder',
@@ -227,7 +247,8 @@ class LocalNotificationService {
   }
 
   // Shows expense notification
-  static Future<void> sendExpenseNotification(double amount, String category) async {
+  static Future<void> sendExpenseNotification(
+      double amount, String category) async {
     if (kIsWeb) {
       print('[Web Stub] Expense Added: \$$amount in $category');
       return;
@@ -266,9 +287,9 @@ class LocalNotificationService {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.maybeOf(navigatorKey.currentContext!)
             ?.showSnackBar(SnackBar(
-              content: Text('$title: $body'),
-              duration: const Duration(seconds: 3),
-            ));
+          content: Text('$title: $body'),
+          duration: const Duration(seconds: 3),
+        ));
       });
       return;
     }
@@ -300,7 +321,8 @@ class LocalNotificationService {
     required int minute,
   }) async {
     if (kIsWeb) {
-      print('[Web Stub] schedule shopping reminder for household: $householdID, user: $userID at $hour:$minute');
+      print(
+          '[Web Stub] schedule shopping reminder for household: $householdID, user: $userID at $hour:$minute');
       return;
     }
 
@@ -388,7 +410,8 @@ class LocalNotificationService {
   }
 
   // Task point notifications
-  static Future<void> sendTaskPointsNotification(String taskName, int points) async {
+  static Future<void> sendTaskPointsNotification(
+      String taskName, int points) async {
     if (kIsWeb) {
       print('[Web Stub] Task points earned: $points for task: $taskName');
       return;
@@ -402,7 +425,8 @@ class LocalNotificationService {
         android: AndroidNotificationDetails(
           taskPointsChannel,
           'Task Points',
-          channelDescription: 'Notifications about earned points and achievements',
+          channelDescription:
+              'Notifications about earned points and achievements',
           importance: Importance.high,
           priority: Priority.high,
           groupKey: taskGroup,
@@ -415,7 +439,8 @@ class LocalNotificationService {
   }
 
   // Household update notifications
-  static Future<void> sendHouseholdUpdateNotification(String title, String message) async {
+  static Future<void> sendHouseholdUpdateNotification(
+      String title, String message) async {
     if (kIsWeb) {
       print('[Web Stub] Household update: $title - $message');
       return;
@@ -466,7 +491,8 @@ class LocalNotificationService {
 
     if (scheduledDate.isBefore(now)) {
       scheduledDate = scheduledDate.add(const Duration(days: 7));
-    }    await _notificationsPlugin.zonedSchedule(
+    }
+    await _notificationsPlugin.zonedSchedule(
       'weekly_report_$householdId'.hashCode,
       'Weekly Household Report',
       'Your weekly household activity summary is ready!',
@@ -490,13 +516,16 @@ class LocalNotificationService {
   }
 
   // Chat message notifications
-  static Future<void> sendChatMessageNotification(String sender, String message, {String? chatId}) async {
+  static Future<void> sendChatMessageNotification(String sender, String message,
+      {String? chatId}) async {
     if (kIsWeb) {
       print('[Web Stub] Chat message from $sender: $message');
       return;
     }
 
-    final int notificationId = chatId != null ? chatId.hashCode : DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final int notificationId = chatId != null
+        ? chatId.hashCode
+        : DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
     await _notificationsPlugin.show(
       notificationId,

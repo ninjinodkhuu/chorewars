@@ -199,66 +199,34 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }).toList();
   }
 
-  /// Checks if a task has expired (more than 7 days since acceptance)
-  bool _isTaskExpired(Task task) {
-    if (task.acceptedAt == null || task.done) return false;
-    final DateTime now = DateTime.now();
-    final DateTime expiryDate = task.acceptedAt!.add(const Duration(days: 7));
-    return now.isAfter(expiryDate);
-  }
-
-  /// Handles expired task by marking it as incomplete
-  Future<void> _handleExpiredTask(String householdId, Task task) async {
-    if (_isTaskExpired(task) && !task.done) {
-      try {
-        await FirebaseFirestore.instance
-            .collection('households')
-            .doc(householdId)
-            .collection('members')
-            .doc(user.uid)
-            .collection('tasks')
-            .doc(task.id)
-            .update({
-          'done': false,
-          'status': 'expired',
-          'expired_at': FieldValue.serverTimestamp(),
-        });
-      } catch (e) {
-        print('Error handling expired task: $e');
-      }
-    }
-  }
-
-  // Stream of tasks for the current user
+  // Stream of tasks for the current user only (per-user view)
   Stream<List<Task>> _getTasksStream() async* {
     String householdId = await _getHouseholdId();
-
-    await for (var snapshot in FirebaseFirestore.instance
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      yield [];
+      return;
+    }
+    // Listen to tasks collection directly as a stream
+    yield* FirebaseFirestore.instance
         .collection('households')
         .doc(householdId)
         .collection('members')
         .doc(user.uid)
         .collection('tasks')
-        .snapshots()) {
-      List<Task> tasks = snapshot.docs.map((doc) {
-        Task task = Task.fromFirestore(doc);
-
-        // Check and handle expired tasks
-        _handleExpiredTask(householdId, task);
-
-        return task;
-      }).toList();
-      yield tasks;
-    }
+        .snapshots()
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => Task.fromFirestore(doc)).toList());
   }
 
   // Filter tasks for a specific day
   List<Task> _filterTasksForDay(List<Task> tasks, DateTime day) {
-    // Show tasks on their due date, excluding abandoned tasks
-    return tasks
-        .where(
-            (task) => isSameDay(task.date, day) && task.status != 'abandoned')
-        .toList();
+    List<Task> filtered = tasks.where((task) {
+      bool sameDay = isSameDay(task.date, day);
+      bool isValid = task.status != 'abandoned';
+      return sameDay && isValid;
+    }).toList();
+    return filtered;
   }
 
   // Show dialog to add a new task
@@ -387,17 +355,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   return;
                 }
                 try {
-                  final String assignedMemberId =
-                      isLeader ? (selectedMemberId ?? user.uid) : user.uid;
-                  final String taskName = nameController.text.trim();
-                  final String taskId =
-                      '${taskName}_${DateTime.now().millisecondsSinceEpoch}';
+                  // Always use the current user's UID unless assigning to another member
+                  final String assignedMemberId = (selectedMemberId == null ||
+                          (selectedMemberId?.isEmpty ?? true))
+                      ? FirebaseAuth.instance.currentUser!.uid
+                      : selectedMemberId!;
 
-                  // Add task using TaskService
+                  // DEBUG: Print the householdId and assignedMemberId before creating the task
+                  print('[CalendarScreen] Creating task with householdId: '
+                      '[32m$householdId[0m, memberId: '
+                      '[34m$assignedMemberId[0m');
+
                   await TaskService.addTask(
                     householdId: householdId,
                     memberId: assignedMemberId,
-                    name: taskName,
+                    name: nameController.text.trim(),
                     category: "", // Pass empty string for category
                     dueDate: selectedDate,
                     difficulty: selectedDifficulty,
@@ -408,15 +380,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   try {
                     await LocalNotificationService.sendTaskNotification(
                       title: 'New Task Created',
-                      body: 'Task "$taskName" has been created',
-                      payload: 'task_created_$taskId',
+                      body:
+                          'Task "${nameController.text.trim()}" has been created',
+                      payload:
+                          'task_created_${nameController.text.trim()}_${DateTime.now().millisecondsSinceEpoch}',
                     );
 
                     // Schedule reminder if enabled
                     if (_taskReminderEnabled) {
                       await LocalNotificationService.scheduleTaskReminder(
-                        taskId,
-                        taskName,
+                        '${nameController.text.trim()}_${DateTime.now().millisecondsSinceEpoch}',
+                        nameController.text.trim(),
                         selectedDate,
                         _taskReminderLeadDays,
                       );
@@ -479,7 +453,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      barrierDismissible: false, // Prevent dismissing by tapping outside
+      builder: (dialogContext) => AlertDialog(
+        // Use separate context for dialog
         title: const Text('Complete Task'),
         content: SingleChildScrollView(
           child: Column(
@@ -512,7 +488,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
@@ -536,19 +512,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   timeSpentMinutes: timeSpent,
                 );
 
-                // Send completion notification
-                await LocalNotificationService.sendTaskNotification(
-                  title: 'Task Completed',
-                  body:
-                      'You completed "${task.name}" and earned ${task.difficulty.points} points!',
-                  payload: 'task_${task.id}_completed',
-                );
-
-                // Cancel any existing reminders for this task
-                LocalNotificationService.cancelTaskReminder(task.id);
+                // Close dialog first
+                Navigator.of(dialogContext).pop();
 
                 if (mounted) {
-                  Navigator.pop(context);
+                  // Then show success message
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
@@ -557,18 +525,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     ),
                   );
                 }
+
+                // Cancel any existing reminders for this task
+                LocalNotificationService.cancelTaskReminder(task.id);
               } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Error completing task: $e'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error completing task: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blue[900],
-              foregroundColor: Colors.white, // Add white text color
+              foregroundColor: Colors.white,
             ),
             child: const Text('Complete Task'),
           ),
@@ -792,27 +765,24 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     String taskStatus;
                     Color statusColor;
 
+                    // Only use new status logic
                     if (task.status == 'abandoned') {
                       taskStatus = 'Abandoned';
                       statusColor = Colors.red;
-                    } else if (_isTaskExpired(task)) {
+                    } else if (task.status == 'expired') {
                       taskStatus = 'Expired';
                       statusColor = Colors.red;
-                    } else if (task.done) {
+                    } else if (task.done || task.status == 'completed') {
                       taskStatus = 'Completed';
                       statusColor = Colors.green;
                     } else if (task.startedAt != null) {
                       taskStatus = 'In Progress';
                       statusColor = Colors.blue;
-                    } else if (task.acceptedAt != null) {
-                      // Calculate days remaining
-                      int daysRemaining = 7 -
-                          DateTime.now().difference(task.acceptedAt!).inDays;
-                      taskStatus = 'Accepted ($daysRemaining days left)';
-                      statusColor =
-                          daysRemaining <= 2 ? Colors.orange : Colors.blue;
+                    } else if (task.status == 'assigned') {
+                      taskStatus = 'Assigned';
+                      statusColor = Colors.grey;
                     } else {
-                      taskStatus = 'Pending';
+                      taskStatus = task.status;
                       statusColor = Colors.grey;
                     }
 
@@ -893,50 +863,99 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.end,
                               children: [
+                                // Show delete button for completed tasks
+                                if (task.status == 'completed' ||
+                                    task.done) ...[
+                                  ElevatedButton.icon(
+                                    icon: const Icon(Icons.delete_outline,
+                                        size: 16),
+                                    label: const Text('Delete'),
+                                    onPressed: () async {
+                                      String householdId =
+                                          await _householdIdFuture;
+                                      // Show confirmation dialog
+                                      showDialog(
+                                        context: context,
+                                        barrierDismissible: false,
+                                        builder: (dialogContext) => AlertDialog(
+                                          title: const Text('Delete Task'),
+                                          content: Text(
+                                              'Are you sure you want to delete "${task.name}"?\nThis action cannot be undone.'),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.of(dialogContext)
+                                                      .pop(),
+                                              child: const Text('Cancel'),
+                                            ),
+                                            ElevatedButton(
+                                              onPressed: () async {
+                                                try {
+                                                  await TaskService
+                                                      .deleteTaskAndUpdateStats(
+                                                    householdId: householdId,
+                                                    memberId: user.uid,
+                                                    taskId: task.id,
+                                                  );
+
+                                                  // Close dialog first
+                                                  Navigator.of(dialogContext)
+                                                      .pop();
+
+                                                  if (mounted) {
+                                                    ScaffoldMessenger.of(
+                                                            context)
+                                                        .showSnackBar(
+                                                      const SnackBar(
+                                                        content: Text(
+                                                            'Task deleted successfully'),
+                                                        backgroundColor:
+                                                            Colors.green,
+                                                      ),
+                                                    );
+                                                  }
+                                                } catch (e) {
+                                                  print(
+                                                      'Error deleting task: $e');
+                                                  if (mounted) {
+                                                    Navigator.of(dialogContext)
+                                                        .pop();
+                                                    ScaffoldMessenger.of(
+                                                            context)
+                                                        .showSnackBar(
+                                                      SnackBar(
+                                                        content: Text(
+                                                            'Error deleting task: $e'),
+                                                        backgroundColor:
+                                                            Colors.red,
+                                                      ),
+                                                    );
+                                                  }
+                                                }
+                                              },
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: Colors.red,
+                                                foregroundColor: Colors.white,
+                                              ),
+                                              child: const Text('Delete'),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.grey[700],
+                                      foregroundColor: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
+                                // Existing task action buttons
                                 if (!task.done &&
                                     task.status != 'abandoned' &&
                                     task.status != 'expired') ...[
-                                  if (task.acceptedAt == null)
-                                    ElevatedButton.icon(
-                                      icon: const Icon(Icons.check, size: 16),
-                                      label: const Text('Accept'),
-                                      onPressed: () async {
-                                        String householdId =
-                                            await _getHouseholdId();
-                                        try {
-                                          await TaskService.acceptTask(
-                                            householdId: householdId,
-                                            memberId: user.uid,
-                                            taskId: task.id,
-                                          );
-                                          if (mounted) {
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              const SnackBar(
-                                                content: Text('Task accepted'),
-                                                backgroundColor: Colors.green,
-                                              ),
-                                            );
-                                          }
-                                        } catch (e) {
-                                          if (mounted) {
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                    'Error accepting task: $e'),
-                                                backgroundColor: Colors.red,
-                                              ),
-                                            );
-                                          }
-                                        }
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.green,
-                                        foregroundColor: Colors.white,
-                                      ),
-                                    )
-                                  else if (task.startedAt == null) ...[
+                                  if (task.status == 'assigned' &&
+                                      task.startedAt == null) ...[
                                     ElevatedButton.icon(
                                       icon: const Icon(Icons.play_arrow,
                                           size: 16),
@@ -989,7 +1008,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                         foregroundColor: Colors.white,
                                       ),
                                     ),
-                                  ] else ...[
+                                  ] else if (task.startedAt != null &&
+                                      !task.done) ...[
                                     ElevatedButton.icon(
                                       icon:
                                           const Icon(Icons.done_all, size: 16),
@@ -1029,7 +1049,28 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          // Force-create a task for the current user
+          await TaskService.addTask(
+            householdId: '4taVtdDejjWPL3Vd4GAO',
+            memberId: 'BC3RQtXJ6GR1FjkPDBeCu1dlbhg1',
+            name: 'Force Created Task',
+            category: 'General',
+            dueDate: DateTime.now().add(const Duration(days: 1)),
+            difficulty: TaskDifficulty.easy,
+            estimatedMinutes: 15,
+          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                  content: Text('Force-created task for your user!')),
+            );
+          }
+        },
+        tooltip: 'Force Create Task',
+        child: const Icon(Icons.bolt),
+      ),
     );
   }
 }
-// End of CalenderScreen.dart

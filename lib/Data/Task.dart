@@ -36,15 +36,44 @@ class Task {
   factory Task.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     final dueDate = data['dueDate'];
-    final acceptedAt = data['acceptedAt'];
-    final startedAt = data['startedAt'];
-    final completedAt = data['completed_at'];
-    final bool done = data['done'] ?? false;
+    final acceptedAt =
+        data['accepted_at'] ?? data['acceptedAt']; // support both for migration
+    final startedAt =
+        data['started_at'] ?? data['startedAt']; // support both for migration
+    final completedAt = data['completed_at']; // CHANGED from 'completedAt'
+    final assignedAt =
+        data['assigned_at'] ?? data['assignedAt']; // support both for migration
 
-    // Default to veryEasy if no difficulty is specified
+    // Print the Firestore document reference path for debugging
+    print('[Task.fromFirestore] Firestore path: ${doc.reference.path}');
+    print('[Task.fromFirestore] Processing doc: ${doc.id}');
+    print('[Task.fromFirestore] Raw task data: $data');
+
+    // Get base status from data or default to assigned
+    String status = data['status']?.toString().toLowerCase() ?? 'assigned';
+
+    // Override status based on timestamps if the current status isn't terminal
+    if (status != 'abandoned' && status != 'expired') {
+      if (data['abandoned_at'] != null) {
+        status = 'abandoned';
+      } else if (data['expired_at'] != null) {
+        status = 'expired';
+      } else if (completedAt != null || data['done'] == true) {
+        status = 'completed';
+      } else if (startedAt != null) {
+        status = 'inProgress';
+      } else if (assignedAt != null) {
+        status = 'assigned';
+      }
+    }
+
+    print('[Task.fromFirestore] Determined status: $status');
+    final bool done = status == 'completed';
+
+    print('[Task.fromFirestore] id: ${doc.id}, status: $status, done: $done');
+
+    // Parse difficulty
     TaskDifficulty difficulty = TaskDifficulty.veryEasy;
-
-    // Try to determine difficulty from the data
     if (data['difficulty'] != null) {
       String difficultyStr = data['difficulty'].toString().toLowerCase().trim();
       try {
@@ -53,26 +82,19 @@ class Task {
           orElse: () => TaskDifficulty.veryEasy,
         );
       } catch (e) {
-        print('Error parsing difficulty string: $e');
-      }
-    } else if (data['points'] != null) {
-      try {
-        int points = (data['points'] is num)
-            ? (data['points'] as num).toInt()
-            : int.tryParse(data['points'].toString()) ?? 1;
-        difficulty = TaskDifficulty.fromValue(points);
-      } catch (e) {
-        print('Error parsing points: $e');
+        print('[Task.fromFirestore] Error parsing difficulty: $e');
       }
     }
 
     return Task(
       id: doc.id,
-      category: data['category'] ?? '',
-      name: data['name'] ?? '',
-      date: dueDate != null ? (dueDate as Timestamp).toDate() : DateTime.now(),
+      category: data['category'] ?? 'Uncategorized',
+      name: data['name'] ?? 'Unnamed Task',
+      date: (dueDate as Timestamp?)?.toDate() ?? DateTime.now(),
       difficulty: difficulty,
-      timeEstimateMinutes: data['timeEstimate'] ?? 0,
+      // Support both timeEstimateMinutes and timeEstimate for migration/compatibility
+      timeEstimateMinutes:
+          data['timeEstimateMinutes'] ?? data['timeEstimate'] ?? 0,
       assignedTo: data['assignedTo'],
       acceptedAt:
           acceptedAt != null ? (acceptedAt as Timestamp).toDate() : null,
@@ -80,7 +102,7 @@ class Task {
       completedAt:
           completedAt != null ? (completedAt as Timestamp).toDate() : null,
       done: done,
-      status: data['status'] ?? 'pending',
+      status: status,
     );
   }
 
@@ -96,6 +118,6 @@ class Task {
     this.completedAt,
     this.done = false,
     this.id = '',
-    this.status = 'pending',
+    this.status = 'assigned',
   });
 }

@@ -1,0 +1,2 @@
+C:/Users/daryl/chore_wars_merged/chorewars/android/app/.cxx/Debug/3h4o3c4h/x86/CMakeFiles/edit_cache.dir
+C:/Users/daryl/chore_wars_merged/chorewars/android/app/.cxx/Debug/3h4o3c4h/x86/CMakeFiles/rebuild_cache.dir

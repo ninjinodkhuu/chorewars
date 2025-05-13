@@ -212,7 +212,8 @@ class TaskHistory extends StatelessWidget {
                     final tasks = snapshot.data!.docs.where((doc) {
                       Map<String, dynamic> data =
                           doc.data() as Map<String, dynamic>;
-                      return data['done'] == true;
+                      return data['status'] == 'completed' ||
+                          data['done'] == true;
                     }).toList();
 
                     if (tasks.isEmpty) {

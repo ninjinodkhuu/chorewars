@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../Data/Task.dart';
 import '../local_notifications.dart';
 
@@ -30,7 +31,9 @@ class TaskService {
       final taskData = taskDoc.data()!;
       if (taskData['done'] == true) {
         throw Exception('Task is already completed');
-      }
+      } // Log current task status before update
+      print(
+          '[TaskService] Completing task ${taskId}: current status=${taskData['status']}');
 
       // Update task status
       await _firestore
@@ -45,7 +48,40 @@ class TaskService {
         'completed_at': FieldValue.serverTimestamp(),
         'points': points,
         'timeSpent': timeSpentMinutes,
+        'status': 'completed',
       });
+
+      print('[TaskService] Task ${taskId} marked as completed');
+
+      // Get the member document to update their stats
+      DocumentSnapshot memberDoc = await _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('members')
+          .doc(memberId)
+          .get();
+
+      // Get current stats, defaulting to 0 if not set
+      Map<String, dynamic> memberData =
+          memberDoc.exists ? memberDoc.data() as Map<String, dynamic> : {};
+      int totalTasks = memberData['totalTasks'] ?? 0;
+      int completedTasks = memberData['completedTasks'] ?? 0;
+      int totalPoints = memberData['totalPoints'] ?? 0;
+      int totalTimeMinutes = memberData['totalTimeMinutes'] ?? 0;
+
+      // Update the member's stats
+      await _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('members')
+          .doc(memberId)
+          .set({
+        'totalTasks': totalTasks + 1,
+        'completedTasks': completedTasks + 1,
+        'totalPoints': totalPoints + points,
+        'totalTimeMinutes': totalTimeMinutes + timeSpentMinutes,
+        'lastUpdated': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
       // Send completion notifications
       await LocalNotificationService.sendTaskNotification(
@@ -84,8 +120,7 @@ class TaskService {
       // Calculate meta-averages from member stats
       for (var userDoc in usersSnapshot.docs) {
         final tasksSnapshot = await _firestore
-            .collection(
-                'households') // Changed from 'household' to 'households'
+            .collection('households')
             .doc(householdId)
             .collection('members')
             .doc(userDoc.id)
@@ -100,9 +135,11 @@ class TaskService {
         // Calculate individual member stats
         for (var task in tasksSnapshot.docs) {
           final data = task.data();
-          if (data['completed_at'] != null) {
+          // Count all non-expired, non-abandoned tasks
+          if (data['status'] != 'expired' && data['status'] != 'abandoned') {
             memberTotalTasks++;
-            if (data['done'] == true) {
+            // Count completed tasks
+            if (data['status'] == 'completed' && data['completed_at'] != null) {
               memberCompletedTasks++;
               var points = data['points'];
               if (points != null) {
@@ -145,7 +182,6 @@ class TaskService {
 
       // Update household stats
       await _firestore.collection('households').doc(householdId).set({
-        // Changed from 'household' to 'households'
         'completionRate': completionRate,
         'avgPoints': avgPoints,
         'avgTimeMinutes': avgTimeMinutes,
@@ -170,7 +206,7 @@ class TaskService {
     required int estimatedMinutes,
   }) async {
     try {
-      print('Adding task with parameters:');
+      print('[TaskService] Adding task with parameters:');
       print('householdId: $householdId');
       print('memberId: $memberId');
       print('name: $name');
@@ -179,53 +215,89 @@ class TaskService {
       print('difficulty: ${difficulty.name}');
       print('estimatedMinutes: $estimatedMinutes');
 
+      // Ensure member document exists before adding a task
+      final memberDocRef = _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('members')
+          .doc(memberId);
+      final memberDocSnap = await memberDocRef.get();
+      if (!memberDocSnap.exists) {
+        print('[TaskService] Member document did not exist, creating...');
+        await memberDocRef.set({
+          'createdAt': FieldValue.serverTimestamp(),
+          'totalTasks': 0,
+          'completedTasks': 0,
+          'totalPoints': 0,
+          'totalTimeMinutes': 0,
+        }, SetOptions(merge: true));
+      }
+
+      // All tasks are immediately assigned (no pending/accepted logic)
+      final taskData = {
+        'name': name,
+        'category': category,
+        'dueDate': Timestamp.fromDate(dueDate),
+        'difficulty': difficulty.name,
+        'timeEstimateMinutes': estimatedMinutes, // CHANGED from timeEstimate
+        'done': false,
+        'created_at': FieldValue.serverTimestamp(),
+        'status': 'assigned',
+        'assigned_at': FieldValue.serverTimestamp(),
+        'started_at': null,
+        'completed_at': null,
+        'abandoned_at': null,
+        'expired_at': null,
+        'assignedTo': memberId, // Ensure assignedTo is set for filtering
+      };
+
+      print('[TaskService] Task data prepared: $taskData');
+      if (memberId == FirebaseAuth.instance.currentUser?.uid) {
+        print('[TaskService] This task is being created for the current user.');
+      } else {
+        print(
+            '[TaskService] This task is being assigned to another member: $memberId');
+      }
+
+      print(
+          '[TaskService] DEBUG: Writing to Firestore path: households/$householdId/members/$memberId/tasks');
+      // Add task to Firestore
       DocumentReference taskRef = await _firestore
           .collection('households')
           .doc(householdId)
           .collection('members')
           .doc(memberId)
           .collection('tasks')
-          .add({
-        'name': name,
-        'category': category,
-        'dueDate': Timestamp.fromDate(dueDate),
-        'done': false,
-        'points': difficulty.points,
-        'timeEstimate': estimatedMinutes,
-        'difficulty': difficulty.name,
-        'created_at': FieldValue.serverTimestamp(),
-      });
+          .add(taskData);
+      print(
+          '[TaskService] DEBUG: Added task with ID: \\${taskRef.id} at path: \\${taskRef.path}');
 
-      print('Task added successfully with ID: ${taskRef.id}');
-    } catch (e) {
-      print('Error adding task: $e');
-      rethrow;
-    }
-  }
+      print('[TaskService] Added task with ID: ${taskRef.id}');
+      print('[TaskService] Firestore document path: ${taskRef.path}');
 
-  static Future<void> acceptTask({
-    required String householdId,
-    required String memberId,
-    required String taskId,
-  }) async {
-    try {
-      // Update the task with acceptance time and 7-day expiration date
-      await _firestore
-          .collection('households')
-          .doc(householdId)
-          .collection('members')
-          .doc(memberId)
-          .collection('tasks')
-          .doc(taskId)
-          .update({
-        'acceptedAt': FieldValue.serverTimestamp(),
-        'status': 'accepted',
-        'expiryDate': Timestamp.fromDate(
-          DateTime.now().add(const Duration(days: 7)),
-        ),
-      });
-    } catch (e) {
-      print('Error accepting task: $e');
+      // Update member's task count
+      DocumentSnapshot memberDoc = await memberDocRef.get();
+      Map<String, dynamic> memberData =
+          memberDoc.exists ? memberDoc.data() as Map<String, dynamic> : {};
+      int totalTasks = memberData['totalTasks'] ?? 0;
+
+      await memberDocRef.set({
+        'totalTasks': totalTasks + 1,
+        'lastUpdated': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // Send notification for assigned tasks
+      await LocalNotificationService.sendTaskNotification(
+        title: "New Task Assigned",
+        body: "You have been assigned a task: $name",
+        payload: taskRef.id,
+      );
+
+      print(
+          '[TaskService] Successfully added task with status: \\${taskData['status']}');
+    } catch (e, stack) {
+      print('[TaskService] Error adding task: $e');
+      print('[TaskService] Stack trace: $stack');
       rethrow;
     }
   }
@@ -236,16 +308,45 @@ class TaskService {
     required String taskId,
   }) async {
     try {
+      // Check current task state
+      final taskDoc = await _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('members')
+          .doc(memberId)
+          .collection('tasks')
+          .doc(taskId)
+          .get();
+
+      if (!taskDoc.exists) {
+        throw Exception('Task not found');
+      }
+
+      final taskData = taskDoc.data()!;
+      final currentStatus = taskData['status'] ?? 'assigned';
+
+      // Only assigned tasks can be started
+      if (currentStatus != 'assigned') {
+        throw Exception(
+            'Only assigned tasks can be started. Current status: $currentStatus');
+      }
+
+      print(
+          '[TaskService] Starting task ${taskId}: changing status from $currentStatus to inProgress');
+
       await _firestore
-          .collection('households') // Changed from 'household' to 'households'
+          .collection('households')
           .doc(householdId)
           .collection('members')
           .doc(memberId)
           .collection('tasks')
           .doc(taskId)
           .update({
-        'startedAt': FieldValue.serverTimestamp(),
+        'started_at': FieldValue.serverTimestamp(), // CHANGED from startedAt
+        'status': 'inProgress',
       });
+
+      print('[TaskService] Task ${taskId} started successfully');
     } catch (e) {
       print('Error starting task: $e');
       rethrow;
@@ -392,6 +493,47 @@ class TaskService {
       await updateHouseholdStats(householdId);
     } catch (e) {
       print('Error abandoning task: $e');
+      rethrow;
+    }
+  }
+
+  /// Deletes a task from the database permanently and updates household stats
+  static Future<void> deleteTaskAndUpdateStats({
+    required String householdId,
+    required String memberId,
+    required String taskId,
+  }) async {
+    try {
+      // First check if the task exists
+      final taskDoc = await _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('members')
+          .doc(memberId)
+          .collection('tasks')
+          .doc(taskId)
+          .get();
+
+      if (!taskDoc.exists) {
+        throw Exception('Task not found');
+      }
+
+      // Delete the task
+      await _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('members')
+          .doc(memberId)
+          .collection('tasks')
+          .doc(taskId)
+          .delete();
+
+      print('[TaskService] Task $taskId deleted successfully');
+
+      // Update household stats since we deleted a task
+      await updateHouseholdStats(householdId);
+    } catch (e) {
+      print('Error deleting task: $e');
       rethrow;
     }
   }

@@ -20,7 +20,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'local_notifications.dart';
 
-enum TaskFilter { accepted, inProgress, completed }
+enum TaskFilter { assigned, inProgress, completed }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -31,7 +31,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final user = FirebaseAuth.instance.currentUser!;
-  TaskFilter _selectedFilter = TaskFilter.accepted;
+  TaskFilter _selectedFilter = TaskFilter.assigned;
   String? householdID;
 
   @override
@@ -44,94 +44,101 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Load householdID
   Future<void> _fetchHouseholdID() async {
-    final userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
 
-    if (userDoc.exists) {
+      if (!userDoc.exists) {
+        print('[HomeScreen] User document does not exist');
+        return;
+      }
+
+      var householdId = userDoc.data()?['household_id'] as String?;
+      if (householdId == null) {
+        print('[HomeScreen] No household_id found for user');
+        return;
+      }
+
       setState(() {
-        householdID = userDoc.get('household_id');
+        householdID = householdId;
       });
+
+      print('[HomeScreen] Loaded household ID: $householdId');
+    } catch (e) {
+      print('[HomeScreen] Error fetching household ID: $e');
     }
   }
 
   Stream<List<Task>> _getTasksStream() async* {
-    String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      yield [];
+      return;
+    }
+    // Get household ID
     final userDoc =
         await FirebaseFirestore.instance.collection('users').doc(uid).get();
-
-    if (userDoc.exists) {
-      String householdId = userDoc.get('household_id');
-
-      await for (var snapshot in FirebaseFirestore.instance
-          .collection('households')
-          .doc(householdId)
-          .collection('members')
-          .doc(uid)
-          .collection('tasks')
-          .snapshots()) {
-        List<Task> tasks =
-            snapshot.docs.map((doc) => Task.fromFirestore(doc)).toList();
-        // Send notifications for task updates
-        _handleTaskUpdates(tasks);
-        yield tasks;
-      }
-    } else {
+    if (!userDoc.exists) {
       yield [];
+      return;
     }
-  }
-
-  void _handleTaskUpdates(List<Task> tasks) {
-    for (var task in tasks) {
-      // Notify when task is completed
-      if (task.done && task.completedAt != null) {
-        LocalNotificationService.sendTaskNotification(
-          title: "Task Completed",
-          body: "The task '${task.name}' has been completed!",
-          payload: task.id,
-        );
-      }
-      // Notify when task is started
-      else if (task.startedAt != null && !task.done) {
-        LocalNotificationService.sendTaskNotification(
-          title: "Task Started",
-          body: "Work has begun on '${task.name}'",
-          payload: task.id,
-        );
-      }
-      // Notify when task is accepted
-      else if (task.acceptedAt != null && task.startedAt == null) {
-        LocalNotificationService.sendTaskNotification(
-          title: "New Task Accepted",
-          body: "You have accepted the task '${task.name}'",
-          payload: task.id,
-        );
-      }
+    final householdId = userDoc.data()?['household_id'] as String?;
+    if (householdId == null) {
+      yield [];
+      return;
     }
+    // Get all household members ONCE
+    final membersSnapshot = await FirebaseFirestore.instance
+        .collection('households')
+        .doc(householdId)
+        .collection('members')
+        .get();
+    // Listen to household doc changes, but fetch all tasks for all members only when the household doc changes
+    yield* FirebaseFirestore.instance
+        .collection('households')
+        .doc(householdId)
+        .snapshots()
+        .asyncMap((_) async {
+      List<Task> allTasks = [];
+      for (var memberDoc in membersSnapshot.docs) {
+        final tasksSnapshot = await FirebaseFirestore.instance
+            .collection('households')
+            .doc(householdId)
+            .collection('members')
+            .doc(memberDoc.id)
+            .collection('tasks')
+            .orderBy('created_at', descending: true)
+            .get();
+        final memberTasks =
+            tasksSnapshot.docs.map((doc) => Task.fromFirestore(doc)).toList();
+        allTasks.addAll(memberTasks);
+      }
+      // Optionally sort by due date or created_at if needed
+      return allTasks;
+    });
   }
 
   List<Task> _getFilteredTasks(List<Task> tasks) {
     switch (_selectedFilter) {
-      case TaskFilter.accepted:
+      case TaskFilter.assigned:
         return tasks
             .where((task) =>
-                task.acceptedAt != null &&
                 task.startedAt == null &&
-                task.status != 'abandoned' &&
-                task.status != 'expired')
+                !task.done &&
+                task.status == 'assigned')
             .toList();
       case TaskFilter.inProgress:
         return tasks
             .where((task) =>
                 task.startedAt != null &&
                 !task.done &&
-                task.status != 'abandoned' &&
-                task.status != 'expired')
+                task.status == 'inProgress')
             .toList();
       case TaskFilter.completed:
         return tasks
-            .where((task) => task.done || task.status == 'abandoned')
+            .where((task) => task.done || task.status == 'completed')
             .toList();
     }
   }
@@ -142,6 +149,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Show loading indicator until householdID is loaded
+    if (householdID == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
     return Container(
       color: Colors.blue[50],
       child: Column(
@@ -174,10 +185,22 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 15),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('DEBUG: User ID: ${user.uid}',
+                    style: const TextStyle(fontSize: 12, color: Colors.red)),
+                Text('DEBUG: Household ID: ${householdID ?? "(not loaded)"}',
+                    style: const TextStyle(fontSize: 12, color: Colors.red)),
+              ],
+            ),
+          ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildFilterButton('Accepted', TaskFilter.accepted),
+              _buildFilterButton('Assigned', TaskFilter.assigned),
               _buildFilterButton('In Progress', TaskFilter.inProgress),
               _buildFilterButton('Completed', TaskFilter.completed),
             ],
@@ -198,19 +221,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
 
                 List<Task>? tasks = snapshot.data;
-                if (tasks == null || tasks.isEmpty) {
-                  return const Center(child: Text('No tasks found'));
+                if (tasks == null) {
+                  print('[HomeScreen] Stream emitted null');
+                  return const Center(child: Text('No tasks (null)'));
+                }
+                if (tasks.isEmpty) {
+                  print('[HomeScreen] Stream emitted empty list');
+                  return const Center(
+                      child: Text('No tasks in Firestore for this user.'));
                 }
                 List<Task> filteredTasks = _getFilteredTasks(tasks);
 
                 if (filteredTasks.isEmpty) {
                   return _buildEmptyPlaceholder(
-                      _selectedFilter == TaskFilter.accepted
-                          ? 'Accepted'
+                      _selectedFilter == TaskFilter.assigned
+                          ? 'Assigned'
                           : _selectedFilter == TaskFilter.inProgress
                               ? 'In Progress'
                               : 'Completed',
-                      _selectedFilter == TaskFilter.accepted
+                      _selectedFilter == TaskFilter.assigned
                           ? Colors.orange
                           : _selectedFilter == TaskFilter.inProgress
                               ? Colors.blue
@@ -243,36 +272,34 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildFilterButton(String text, TaskFilter filter) {
     final isSelected = _selectedFilter == filter;
-    return Container(
-      width: 100,
-      height: 30,
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      child: Material(
-        elevation: 4,
-        borderRadius: BorderRadius.circular(25),
-        child: InkWell(
-          onTap: () {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: isSelected
+                ? (filter == TaskFilter.assigned
+                    ? Colors.orange
+                    : filter == TaskFilter.inProgress
+                        ? Colors.blue
+                        : Colors.green)
+                : Colors.grey[300],
+            foregroundColor: isSelected ? Colors.white : Colors.black,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          onPressed: () {
+            print('[HomeScreen] Changing filter to: $filter');
             setState(() {
               _selectedFilter = filter;
             });
           },
-          borderRadius: BorderRadius.circular(25),
-          child: Container(
-            decoration: BoxDecoration(
-              color: isSelected ? Colors.white : Colors.blue[50],
-              borderRadius: BorderRadius.circular(25),
-            ),
-            child: Center(
-              child: Text(
-                text,
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 13),
+            textAlign: TextAlign.center,
           ),
         ),
       ),
@@ -291,7 +318,7 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              title == 'Accepted' ? Icons.task_alt : Icons.play_circle_outline,
+              title == 'Assigned' ? Icons.task_alt : Icons.play_circle_outline,
               color: color.withOpacity(0.5),
               size: 48,
             ),
@@ -332,20 +359,20 @@ class _TaskHistoryState extends State<TaskHistory> {
 
     String householdId = userDoc.get('household_id');
 
-    // Get all household members
+    // Get all household members ONCE
     final membersSnapshot = await FirebaseFirestore.instance
         .collection('households')
         .doc(householdId)
         .collection('members')
         .get();
 
-    await for (var _ in FirebaseFirestore.instance
+    // Listen to household doc changes, but fetch all tasks for all members only when the household doc changes
+    yield* FirebaseFirestore.instance
         .collection('households')
         .doc(householdId)
-        .snapshots()) {
+        .snapshots()
+        .asyncMap((_) async {
       List<Map<String, dynamic>> allTasks = [];
-
-      // Fetch tasks for each member
       for (var memberDoc in membersSnapshot.docs) {
         final tasksSnapshot = await FirebaseFirestore.instance
             .collection('households')
@@ -353,13 +380,9 @@ class _TaskHistoryState extends State<TaskHistory> {
             .collection('members')
             .doc(memberDoc.id)
             .collection('tasks')
-            .orderBy('completed_at',
-                descending: true) // Order by completion date
+            .orderBy('completed_at', descending: true)
             .get();
-
         final memberEmail = memberDoc.data()['email'] ?? 'Unknown';
-
-        // Convert tasks to maps with member info
         final memberTasks = tasksSnapshot.docs.map((doc) {
           final taskData = doc.data();
           taskData['memberId'] = memberDoc.id;
@@ -367,20 +390,16 @@ class _TaskHistoryState extends State<TaskHistory> {
           taskData['taskId'] = doc.id;
           return taskData;
         }).toList();
-
         allTasks.addAll(memberTasks);
       }
-
-      // Sort completed tasks by completion date
       allTasks.sort((a, b) {
         final aTime = a['completed_at'] as Timestamp?;
         final bTime = b['completed_at'] as Timestamp?;
         if (aTime == null || bTime == null) return 0;
-        return bTime.compareTo(aTime); // Most recent first
+        return bTime.compareTo(aTime);
       });
-
-      yield allTasks;
-    }
+      return allTasks;
+    });
   }
 
   @override
@@ -401,7 +420,9 @@ class _TaskHistoryState extends State<TaskHistory> {
           return Center(child: _buildEmptyPlaceholder('History', Colors.green));
         }
 
-        var completedTasks = tasks.where((t) => t['done'] ?? false).toList();
+        var completedTasks = tasks
+            .where((t) => (t['status'] == 'completed') || (t['done'] == true))
+            .toList();
 
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -506,7 +527,9 @@ class _TaskHistoryState extends State<TaskHistory> {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: tasks.map((task) {
-                        final timeEstimate = task['timeEstimate'] ?? 0;
+                        final timeEstimate = task['timeEstimateMinutes'] ??
+                            task['timeEstimate'] ??
+                            0;
                         final difficulty = task['difficulty'] ?? 'veryEasy';
                         final points = TaskDifficulty.values
                             .firstWhere(

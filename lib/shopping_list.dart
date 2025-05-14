@@ -471,7 +471,7 @@ class _ShoppingListState extends State<ShoppingList> {
     final String uid = user?.uid ?? '';
     // Main UI for the shopping list screen
     return Scaffold(
-      backgroundColor: Colors.blue[50],
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.blue[100],
         title: Text(

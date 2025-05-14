@@ -685,7 +685,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final String formattedDate = formatter.format(DateTime.now());
 
     return Scaffold(
-      backgroundColor: Colors.blue[50],
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           // Header Section

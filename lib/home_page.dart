@@ -65,8 +65,8 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Theme.of(context).primaryColor,
       appBar: AppBar(
-        backgroundColor: Colors.blue[100],
         // Stream builder for dynamic app bar title
         title: StreamBuilder<Widget>(
           stream: HouseholdService.streamAppBarTitle(),

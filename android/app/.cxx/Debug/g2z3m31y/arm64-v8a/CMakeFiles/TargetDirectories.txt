@@ -1,0 +1,2 @@
+/Users/chorewars/chorewars/chorewars/android/app/.cxx/Debug/g2z3m31y/arm64-v8a/CMakeFiles/edit_cache.dir
+/Users/chorewars/chorewars/chorewars/android/app/.cxx/Debug/g2z3m31y/arm64-v8a/CMakeFiles/rebuild_cache.dir

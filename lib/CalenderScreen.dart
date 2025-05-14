@@ -231,7 +231,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   // Stream of tasks for the current user
   Stream<List<Task>> _getTasksStream() async* {
+    print('\n=== _getTasksStream ===');
     String householdId = await _getHouseholdId();
+    print('Loading tasks for household: $householdId');
+    print('User ID: ${user.uid}');
 
     await for (var snapshot in FirebaseFirestore.instance
         .collection('households')
@@ -240,25 +243,50 @@ class _CalendarScreenState extends State<CalendarScreen> {
         .doc(user.uid)
         .collection('tasks')
         .snapshots()) {
+      print('\nReceived ${snapshot.docs.length} tasks from Firestore');
+      
       List<Task> tasks = snapshot.docs.map((doc) {
+        print('\nProcessing task document: ${doc.id}');
+        print('Raw data: ${doc.data()}');
+        
         Task task = Task.fromFirestore(doc);
-
+        print('Converted to Task object:');
+        print('- Name: ${task.name}');
+        print('- Date: ${task.date}');
+        print('- Status: ${task.status}');
+        
         // Check and handle expired tasks
         _handleExpiredTask(householdId, task);
-
         return task;
       }).toList();
+      
+      print('\nYielding ${tasks.length} tasks');
       yield tasks;
     }
   }
 
   // Filter tasks for a specific day
   List<Task> _filterTasksForDay(List<Task> tasks, DateTime day) {
-    // Show tasks on their due date, excluding abandoned tasks
-    return tasks
-        .where(
-            (task) => isSameDay(task.date, day) && task.status != 'abandoned')
-        .toList();
+    print('\n=== Filtering tasks for ${day.toString()} ===');
+    print('Total tasks before filtering: ${tasks.length}');
+    
+    final filteredTasks = tasks.where((task) {
+      final bool sameDay = isSameDay(task.date, day);
+      final bool notAbandoned = task.status != 'abandoned';
+      
+      print('\nTask: ${task.name}');
+      print('Task date: ${task.date}');
+      print('Target date: $day');
+      print('Same day? $sameDay');
+      print('Status: ${task.status}');
+      print('Not abandoned? $notAbandoned');
+      print('Will show: ${sameDay && notAbandoned}');
+      
+      return sameDay && notAbandoned;
+    }).toList();
+    
+    print('\nFiltered tasks count: ${filteredTasks.length}');
+    return filteredTasks;
   }
 
   // Show dialog to add a new task

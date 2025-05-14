@@ -35,7 +35,22 @@ class Task {
 
   factory Task.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    print('=== Task.fromFirestore Debug ===');
+    print('Task ID: ${doc.id}');
+    print('Raw data: $data');
+    
     final dueDate = data['dueDate'];
+    print('Due date field: $dueDate');
+    
+    final DateTime taskDate;
+    if (dueDate is Timestamp) {
+      taskDate = dueDate.toDate();
+      print('Converted Timestamp to DateTime: $taskDate');
+    } else {
+      taskDate = DateTime.now();
+      print('Warning: Using current date as fallback because dueDate was not a Timestamp');
+    }
+
     final acceptedAt = data['acceptedAt'];
     final startedAt = data['startedAt'];
     final completedAt = data['completed_at'];
@@ -70,7 +85,7 @@ class Task {
       id: doc.id,
       category: data['category'] ?? '',
       name: data['name'] ?? '',
-      date: dueDate != null ? (dueDate as Timestamp).toDate() : DateTime.now(),
+      date: taskDate,
       difficulty: difficulty,
       timeEstimateMinutes: data['timeEstimate'] ?? 0,
       assignedTo: data['assignedTo'],

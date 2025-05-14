@@ -20,8 +20,16 @@ import 'package:intl/intl.dart';
 class SquareCard extends StatelessWidget {
   final Task task;
   const SquareCard({super.key, required this.task});
+  
   @override
   Widget build(BuildContext context) {
+    print('\n=== SquareCard Debug ===');
+    print('Building card for task: ${task.name}');
+    print('Task date: ${task.date}');
+    print('Task status: ${task.status}');
+    print('Task difficulty: ${task.difficulty.name} (${task.difficulty.points} points)');
+    print('Task estimate: ${task.timeEstimateMinutes} minutes');
+    
     final DateFormat formatter = DateFormat('MMMM d, yyyy');
     final String formattedDate = formatter.format(task.date);
     final bool isAbandoned = task.status == 'abandoned';

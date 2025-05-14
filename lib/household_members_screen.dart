@@ -18,6 +18,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'services/household_service.dart';
 
+/// A screen that displays and manages household members, including:
+/// - Viewing current members and their roles
+/// - Inviting new members via email
+/// - Managing household leadership
+/// - Handling pending invitations
+/// - Editing household name
 class HouseholdMembersScreen extends StatefulWidget {
   const HouseholdMembersScreen({super.key});
 
@@ -26,11 +32,19 @@ class HouseholdMembersScreen extends StatefulWidget {
 }
 
 class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
+  /// Controller for the email input field when inviting new members
   final TextEditingController _inviteEmailController = TextEditingController();
-  final TextEditingController _householdNameController =
-      TextEditingController();
+  
+  /// Controller for editing the household name
+  final TextEditingController _householdNameController = TextEditingController();
+  
+  /// Current name of the household
   String householdName = '';
+  
+  /// ID of the current household leader
   String leaderId = '';
+  
+  /// ID of the current household
   String? currentHouseholdId;
 
   @override
@@ -39,6 +53,10 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
     _loadHouseholdInfo();
   }
 
+  /// Loads the household information from Firestore, including:
+  /// - Household name
+  /// - Household ID
+  /// - Leader ID
   Future<void> _loadHouseholdInfo() async {
     final name = await HouseholdService.getHouseholdName();
     final id = await HouseholdService.getHouseholdId();
@@ -62,6 +80,12 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
     }
   }
 
+  /// Fetches the list of household members from Firestore.
+  /// Returns a list of maps containing member information:
+  /// - id: Member's unique identifier
+  /// - email: Member's email address
+  /// - name: Member's display name (defaults to email if not set)
+  /// - totalPoints: Member's accumulated points
   Future<List<Map<String, dynamic>>> _fetchHouseholdMembers() async {
     if (currentHouseholdId == null) return [];
 
@@ -78,10 +102,13 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
         'email': data['email'] ?? 'Unknown',
         'name': data['name'] ?? data['email'] ?? 'Unknown',
         'totalPoints': data['totalPoints'] ?? 0,
+        'isLeader': data['isLeader'] ?? false,
       };
     }).toList();
   }
 
+  /// Sends an invitation to join the household to the specified email address.
+  /// Creates a new invitation document in Firestore under 'household_invitations'.
   Future<void> _inviteToHousehold() async {
     final email = _inviteEmailController.text.trim();
     if (email.isEmpty) return;
@@ -130,17 +157,41 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
     }
   }
 
+  /// Assigns a new leader to the household.
+  /// Updates the household document in Firestore with the new leader's ID.
+  /// @param memberId The ID of the member to be assigned as leader
   Future<void> _assignLeader(String memberId) async {
     try {
       if (currentHouseholdId == null) return;
 
-      await FirebaseFirestore.instance
+      // Get a reference to the household document
+      final householdRef = FirebaseFirestore.instance
           .collection('households')
-          .doc(currentHouseholdId)
-          .set({
+          .doc(currentHouseholdId);
+
+      // Get all members in the household
+      final membersSnapshot = await householdRef
+          .collection('members')
+          .get();
+
+      // Start a batch write to update all members atomically
+      final batch = FirebaseFirestore.instance.batch();
+
+      // Update household document
+      batch.set(householdRef, {
         'leaderId': memberId,
         'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+
+      // Update all members' isLeader status
+      for (var memberDoc in membersSnapshot.docs) {
+        batch.update(memberDoc.reference, {
+          'isLeader': memberDoc.id == memberId,
+        });
+      }
+
+      // Commit all changes
+      await batch.commit();
 
       setState(() {
         leaderId = memberId;
@@ -164,6 +215,8 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
     }
   }
 
+  /// Shows a dialog for editing the household name.
+  /// Updates both local state and Firestore when the name is changed.
   void _showEditHouseholdDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -209,6 +262,8 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
     );
   }
 
+  /// Builds the invite button and its associated dialog.
+  /// @returns A widget containing the invite button and email input dialog
   Widget _buildInviteButton(BuildContext context) {
     return ElevatedButton.icon(
       onPressed: () {
@@ -248,6 +303,7 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.blue[50],
+      // Custom AppBar with household name and edit button
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -260,6 +316,7 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
         ),
         centerTitle: true,
         actions: [
+          // Edit household name button
           IconButton(
             icon: const Icon(Icons.edit),
             color: Colors.blue[900],
@@ -270,7 +327,8 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Invitation list
+            // Pending Invitations Section
+            // Shows a list of invitations sent to this household
             StreamBuilder<List<Map<String, dynamic>>>(
               stream: HouseholdService.streamPendingInvites(),
               builder: (context, snapshot) {
@@ -345,14 +403,17 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
               },
             ),
 
-            // Members list
+            // Members List Section
+            // Displays all current household members with their roles
             FutureBuilder<List<Map<String, dynamic>>>(
               future: _fetchHouseholdMembers(),
               builder: (context, snapshot) {
+                // Loading state
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
+                // Error state
                 if (snapshot.hasError) {
                   return Center(
                     child: Text('Error: ${snapshot.error}'),
@@ -361,6 +422,7 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
 
                 final members = snapshot.data ?? [];
 
+                // Main members container with shadow and rounded corners
                 return Container(
                   margin: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -377,6 +439,7 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Header with member count and invite button
                       Padding(
                         padding: const EdgeInsets.all(16),
                         child: Row(
@@ -394,6 +457,7 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
                           ],
                         ),
                       ),
+                      // Members list with leader indicators and actions
                       ListView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),

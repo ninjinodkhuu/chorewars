@@ -145,7 +145,6 @@ class TaskService {
 
       // Update household stats
       await _firestore.collection('households').doc(householdId).set({
-        // Changed from 'household' to 'households'
         'completionRate': completionRate,
         'avgPoints': avgPoints,
         'avgTimeMinutes': avgTimeMinutes,
@@ -159,7 +158,7 @@ class TaskService {
       rethrow;
     }
   }
-
+  // Adds a task to the database
   static Future<void> addTask({
     required String householdId,
     required String memberId,
@@ -170,22 +169,29 @@ class TaskService {
     required int estimatedMinutes,
   }) async {
     try {
-      print('Adding task with parameters:');
+      print('\n=== Starting task addition ===');
+      print('Parameters:');
       print('householdId: $householdId');
       print('memberId: $memberId');
       print('name: $name');
       print('category: $category');
       print('dueDate: $dueDate');
-      print('difficulty: ${difficulty.name}');
+      print('difficulty: ${difficulty.name} (${difficulty.points} points)');
       print('estimatedMinutes: $estimatedMinutes');
-
-      DocumentReference taskRef = await _firestore
+      
+      // Verify the collection path exists
+      final memberDoc = await _firestore
           .collection('households')
           .doc(householdId)
           .collection('members')
           .doc(memberId)
-          .collection('tasks')
-          .add({
+          .get();
+          
+      if (!memberDoc.exists) {
+        throw Exception('Member document does not exist. Path: households/$householdId/members/$memberId');
+      }
+
+      final taskData = {
         'name': name,
         'category': category,
         'dueDate': Timestamp.fromDate(dueDate),
@@ -194,9 +200,31 @@ class TaskService {
         'timeEstimate': estimatedMinutes,
         'difficulty': difficulty.name,
         'created_at': FieldValue.serverTimestamp(),
-      });
+        'status': 'pending',
+        'assignedTo': memberId,
+      };
 
-      print('Task added successfully with ID: ${taskRef.id}');
+      print('\nTask data to be written:');
+      print(taskData);
+
+      DocumentReference taskRef = await _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('members')
+          .doc(memberId)
+          .collection('tasks')
+          .add(taskData);
+
+      print('\nTask added successfully with ID: ${taskRef.id}');
+      
+      // Verify the task was actually created
+      final createdTask = await taskRef.get();
+      if (!createdTask.exists) {
+        throw Exception('Task document was not created successfully');
+      }
+      print('\nVerified task exists in Firestore');
+      print('Created task data:');
+      print(createdTask.data());
     } catch (e) {
       print('Error adding task: $e');
       rethrow;

@@ -11,6 +11,7 @@
 // If you add new authentication methods, update the UI and logic here.
 
 // Import required Firebase and Flutter packages
+import 'package:chore/services/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 // Import custom components
@@ -230,16 +231,17 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 50), // Adds vertical space.
 
                 // Google and Apple sign in buttons
-                const Row(
+                Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     // Google button
-                    SquareTile(imagePath: 'lib/images/google.png'),
+                    SquareTile(
+                        onTap: () => AuthService().signInWithGoogle(),
+                        imagePath: 'lib/images/google.png'),
 
-                    SizedBox(width: 25), // Adds horizontal space.
 
-                    // Apple button
-                    SquareTile(imagePath: 'lib/images/apple.png')
+
+
                   ],
                 ),
 

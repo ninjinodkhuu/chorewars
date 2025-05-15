@@ -10,6 +10,7 @@
 //
 // If you add new registration fields, update both the UI and Firestore logic.
 
+import 'package:chore/services/auth_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -17,9 +18,10 @@ import 'components/my_button.dart';
 import 'components/my_textfield.dart';
 import 'components/square_tile.dart';
 
+
 class RegisterPage extends StatefulWidget {
   final Function()? onTap;
-  const RegisterPage({super.key, required this.onTap});
+  const RegisterPage({super.key,required this.onTap});
 
   @override
   State<RegisterPage> createState() => _RegisterPageState();
@@ -30,24 +32,16 @@ class _RegisterPageState extends State<RegisterPage> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final ConfirmpasswordController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController= TextEditingController();
+
   String givenMessage = "";
-
-  Future<void> _storeUserData(String uid, String email) async {
-    try {
-      await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        'email': email,
-        'created_at': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      print("Error storing user data: $e");
-    }
-  }
-
   // sign user in method
   void signUserUp() async {
-    // show loading circle
+    // Show loading circle
     showDialog(
       context: context,
+      barrierDismissible: false, // prevent dismiss by tapping outside the dialog
       builder: (context) {
         return const Center(
           child: CircularProgressIndicator(),
@@ -55,63 +49,61 @@ class _RegisterPageState extends State<RegisterPage> {
       },
     );
 
-    // try creating the user
-    try {
-      // Check if passwords match by comparing their text values
-      if (passwordController.text == ConfirmpasswordController.text) {
-        final userCredential =
-            await FirebaseAuth.instance.createUserWithEmailAndPassword(
+    // Check if passwords match
+    if (passwordController.text == ConfirmpasswordController.text) {
+      try {
+        // Try creating the user
+        await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: emailController.text,
           password: passwordController.text,
         );
-
-        // Store the user data in Firestore
-        await _storeUserData(userCredential.user!.uid, emailController.text);
-
-        // pop the loading circle
-        Navigator.pop(context);
-      } else {
-        // pop the loading circle
-        Navigator.pop(context);
-        //show error message, passwords don't match
-        NonMatchingPasswordMessage();
+        // Optionally, navigate to a new page upon successful signup
+        // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => HomePage()));
+      } on FirebaseAuthException catch (e) {
+        showDialog(
+          context: context,
+          builder: (context) {
+            String errorMessage = 'An error occurred';
+            if (e.code == 'email-already-in-use') {
+              errorMessage = 'The email address is already in use by another account.';
+            } else if (e.code == 'invalid-email') {
+              errorMessage = 'The email address is not valid.';
+            } else if (e.code == 'weak-password') {
+              errorMessage = 'The password provided is too weak.';
+            }
+            return AlertDialog(
+              backgroundColor: Colors.deepPurple,
+              title: const Text('Registration Failed', style: TextStyle(color: Colors.white)),
+              content: Text(errorMessage, style: const TextStyle(color: Colors.white)),
+            );
+          },
+        );
       }
-    } on FirebaseAuthException catch (e) {
-      // pop the loading circle
-      Navigator.pop(context);
-      // Show appropriate error messages
-      if (e.code == 'email-already-in-use') {
-        showErrorMessage('Email already in use');
-      } else if (e.code == 'invalid-email') {
-        showErrorMessage('Invalid email format');
-      } else if (e.code == 'weak-password') {
-        showErrorMessage('Password is too weak');
-      } else {
-        showErrorMessage('Registration failed: ${e.message}');
-      }
-    } catch (e) {
-      // pop the loading circle for any other errors
-      Navigator.pop(context);
-      showErrorMessage('An error occurred during registration');
+
+      // add user details
+      final User? user = FirebaseAuth.instance.currentUser;
+      addUserDetails(
+          user!.uid,
+          _firstNameController.text.trim(),
+          _lastNameController.text.trim(),
+          emailController.text.trim()
+      );
     }
+    else {
+      // If passwords do not match, show error message
+      NonMatchingPasswordMessage();
+    }
+
+    // Pop the loading circle in all cases
+    Navigator.pop(context);
   }
 
-  // general error message popup
-  void showErrorMessage(String message) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.deepPurple,
-          title: Center(
-            child: Text(
-              message,
-              style: const TextStyle(color: Colors.white),
-            ),
-          ),
-        );
-      },
-    );
+  Future<void> addUserDetails(String uid, String firstName, String lastName, String email) async {
+    await FirebaseFirestore.instance.collection('users').doc(uid).set({
+      'first name': firstName,
+      'last name': lastName,
+      'email': email,
+    });
   }
 
   // wrong email message popup
@@ -131,7 +123,6 @@ class _RegisterPageState extends State<RegisterPage> {
       },
     );
   }
-
   void NonMatchingPasswordMessage() {
     showDialog(
       context: context,
@@ -148,7 +139,6 @@ class _RegisterPageState extends State<RegisterPage> {
       },
     );
   }
-
   // wrong password message popup
   void wrongPasswordMessage() {
     showDialog(
@@ -177,7 +167,7 @@ class _RegisterPageState extends State<RegisterPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const SizedBox(height: 25),
+                const SizedBox(height: 0),
 
                 // logo
                 const Icon(
@@ -185,7 +175,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   size: 100,
                 ),
 
-                const SizedBox(height: 25),
+                const SizedBox(height: 15),
 
                 // welcome back, you've been missed!
                 Text(
@@ -199,6 +189,16 @@ class _RegisterPageState extends State<RegisterPage> {
                 const SizedBox(height: 25),
 
                 // email textfield
+
+                MyTextField(
+                  controller: _firstNameController,
+                  hintText: 'First Name',
+                  obscureText: false,
+                ), MyTextField(
+                  controller: _lastNameController,
+                  hintText: 'Last Name',
+                  obscureText: false,
+                ),
                 MyTextField(
                   controller: emailController,
                   hintText: 'Email',
@@ -214,6 +214,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   obscureText: true,
                 ),
 
+
                 const SizedBox(height: 10),
                 // confrim password textfield
                 MyTextField(
@@ -222,7 +223,12 @@ class _RegisterPageState extends State<RegisterPage> {
                   obscureText: true,
                 ),
 
+
                 const SizedBox(height: 10),
+
+
+
+
 
                 const SizedBox(height: 25),
 
@@ -232,7 +238,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   onTap: signUserUp,
                 ),
 
-                const SizedBox(height: 50),
+                const SizedBox(height: 25),
 
                 // or continue with
                 Padding(
@@ -262,31 +268,27 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                 ),
 
-                const SizedBox(height: 50),
+                const SizedBox(height: 5),
 
                 // google + apple sign in buttons
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
+                  children:  [
                     // google button
-                    Flexible(
-                      child: Container(
-                        constraints: const BoxConstraints(maxWidth: 60),
-                        child: const SquareTile(
-                            imagePath: 'lib/images/google.png'),
-                      ),
+                    SquareTile(
+                        onTap: () => AuthService().signInWithGoogle(),
+                        imagePath: 'lib/images/google.png'
                     ),
 
-                    const SizedBox(width: 25),
+                    // SizedBox(width: 25),
 
                     // apple button
-                    Flexible(
-                      child: Container(
-                        constraints: const BoxConstraints(maxWidth: 60),
-                        child:
-                            const SquareTile(imagePath: 'lib/images/apple.png'),
-                      ),
-                    ),
+                    //SquareTile(
+                    //onTap: (){
+
+                    //},
+                    //imagePath: 'lib/images/apple.png'
+                    // )
                   ],
                 ),
 

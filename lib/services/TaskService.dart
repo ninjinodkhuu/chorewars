@@ -168,6 +168,7 @@ class TaskService {
     required DateTime dueDate,
     required TaskDifficulty difficulty,
     required int estimatedMinutes,
+    required String comments,
   }) async {
     try {
       print('Adding task with parameters:');
@@ -194,6 +195,7 @@ class TaskService {
         'timeEstimate': estimatedMinutes,
         'difficulty': difficulty.name,
         'created_at': FieldValue.serverTimestamp(),
+        'comments': comments,
       });
 
       print('Task added successfully with ID: ${taskRef.id}');

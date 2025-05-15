@@ -266,6 +266,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final TextEditingController nameController = TextEditingController();
     final TextEditingController timeEstimateController =
         TextEditingController();
+    final TextEditingController commentsController = TextEditingController();
     String? selectedMemberId;
     TaskDifficulty selectedDifficulty = TaskDifficulty.veryEasy;
     DateTime selectedDate = _selectedDay;
@@ -322,6 +323,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     border: OutlineInputBorder(),
                   ),
                 ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: commentsController,
+                  decoration: const InputDecoration(
+                    labelText: 'Optional Comments',
+                    hintText: 'Add notes or details',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+
                 const SizedBox(height: 16),
                 if (isLeader) ...[
                   DropdownButtonFormField<String>(
@@ -402,6 +413,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     dueDate: selectedDate,
                     difficulty: selectedDifficulty,
                     estimatedMinutes: timeEstimate,
+                    comments: commentsController.text.trim(),
                   );
 
                   // Send notifications in a try-catch block to ensure task creation succeeds regardless
@@ -884,6 +896,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                     ),
                                   ],
                                 ),
+                                if (task.comments != null && task.comments.trim().isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8.0),
+                                    child: Text(
+                                      task.comments,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontStyle: FontStyle.italic,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ),
+
+
                               ],
                             ),
                           ),

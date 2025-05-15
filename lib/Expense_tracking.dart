@@ -269,7 +269,7 @@ class _ExpenseTrackingState extends State<ExpenseTracking> {
     final isSmallScreen = screenWidth < 600;
 
     return Scaffold(
-      backgroundColor: Colors.blue[50],
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.blue[100],
         title: Text(

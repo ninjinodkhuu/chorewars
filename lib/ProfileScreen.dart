@@ -18,7 +18,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import 'test_notifications.dart';
+import 'theme_notifier.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -57,6 +59,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadUserEmail();
     _loadUsername();
     _loadNotificationSettings();
+    _loadThemePreference();
   }
 
   @override
@@ -238,9 +241,70 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _saveThemePreference(String theme) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('settings')
+          .doc('preferences')
+          .set({
+        'theme': theme,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Theme saved!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving theme: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _loadThemePreference() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('settings')
+          .doc('preferences')
+          .get();
+
+      if (doc.exists) {
+        final theme = doc.data()?['theme'] as String?;
+        if (theme != null && mounted) {
+          final themeNotifier = Provider.of<ThemeNotifier>(context, listen: false);
+          themeNotifier.setTheme(theme);
+        }
+      }
+    } catch (e) {
+      print('Error loading theme preference: $e');
+    }
+  }
+
   Widget _buildNotificationSettings() {
+    final textTheme = Theme.of(context).textTheme;
     return Card(
       margin: const EdgeInsets.all(16),
+      color: Theme.of(context).cardColor, 
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -249,15 +313,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Notification Settings',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                  style: textTheme.titleLarge?.copyWith(
+                    color: Theme.of(context).primaryColor,
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.bug_report),
+                  icon: Icon(Icons.bug_report, color: Theme.of(context).primaryColor),
                   onPressed: () {
                     Navigator.push(
                       context,
@@ -272,29 +335,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 16),
 
             // Tasks Section
-            const Text(
+            Text(
               'Tasks',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue,
+              style: textTheme.titleMedium?.copyWith(
+                color: Theme.of(context).primaryColor,
               ),
             ),
             SwitchListTile(
-              title: const Text('Task Reminders'),
-              subtitle: Text(_taskReminderEnabled
-                  ? 'Notify $_notificationLeadTime day(s) before due date'
-                  : 'Disabled'),
+              title: Text(
+                'Task Reminders',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              subtitle: Text(
+                _taskReminderEnabled
+                    ? 'Notify $_notificationLeadTime day(s) before due date'
+                    : 'Disabled',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
               value: _taskReminderEnabled,
               onChanged: (bool value) =>
                   setState(() => _taskReminderEnabled = value),
+              activeColor: Theme.of(context).primaryColor,
             ),
             if (_taskReminderEnabled)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: DropdownButtonFormField<int>(
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Reminder Lead Time',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(
+                        color: Theme.of(context).primaryColor,
+                      ),
+                    ),
                   ),
                   value: _notificationLeadTime,
                   items: [1, 2, 3, 4, 5].map((int value) {
@@ -311,102 +388,159 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             SwitchListTile(
-              title: const Text('Task Assignments'),
-              subtitle: const Text('When someone assigns you a task'),
+              title: Text(
+                'Task Assignments',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              subtitle: Text(
+                'When someone assigns you a task',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
               value: _taskAssignmentEnabled,
               onChanged: (value) =>
                   setState(() => _taskAssignmentEnabled = value),
+              activeColor: Theme.of(context).primaryColor,
             ),
             SwitchListTile(
-              title: const Text('Task Completions'),
-              subtitle: const Text('When household members complete tasks'),
+              title: Text(
+                'Task Completions',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              subtitle: Text(
+                'When household members complete tasks',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
               value: _taskCompletionEnabled,
               onChanged: (value) =>
                   setState(() => _taskCompletionEnabled = value),
+              activeColor: Theme.of(context).primaryColor,
             ),
             SwitchListTile(
-              title: const Text('Point Updates'),
-              subtitle: const Text('When you earn points for tasks'),
+              title: Text(
+                'Point Updates',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              subtitle: Text(
+                'When you earn points for tasks',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
               value: _taskPointsEnabled,
               onChanged: (value) => setState(() => _taskPointsEnabled = value),
+              activeColor: Theme.of(context).primaryColor,
             ),
             SwitchListTile(
-              title: const Text('Task Expiration Warnings'),
-              subtitle: const Text('When tasks are about to expire'),
+              title: Text(
+                'Task Expiration Warnings',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              subtitle: Text(
+                'When tasks are about to expire',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
               value: _taskExpirationEnabled,
               onChanged: (value) =>
                   setState(() => _taskExpirationEnabled = value),
+              activeColor: Theme.of(context).primaryColor,
             ),
 
             const Divider(height: 32),
 
             // Household Section
-            const Text(
+            Text(
               'Household',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue,
+              style: textTheme.titleMedium?.copyWith(
+                color: Theme.of(context).primaryColor,
               ),
             ),
             SwitchListTile(
-              title: const Text('Household Updates'),
-              subtitle: const Text('Member changes and achievements'),
+              title: Text(
+                'Household Updates',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              subtitle: Text(
+                'Member changes and achievements',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
               value: _householdUpdatesEnabled,
               onChanged: (value) =>
                   setState(() => _householdUpdatesEnabled = value),
+              activeColor: Theme.of(context).primaryColor,
             ),
             SwitchListTile(
-              title: const Text('Weekly Reports'),
-              subtitle: const Text('Weekly household performance summary'),
+              title: Text(
+                'Weekly Reports',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              subtitle: Text(
+                'Weekly household performance summary',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
               value: _weeklyReportsEnabled,
               onChanged: (value) =>
                   setState(() => _weeklyReportsEnabled = value),
+              activeColor: Theme.of(context).primaryColor,
             ),
 
             const Divider(height: 32),
 
             // Communication Section
-            const Text(
+            Text(
               'Communication',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue,
+              style: textTheme.titleMedium?.copyWith(
+                color: Theme.of(context).primaryColor,
               ),
             ),
             SwitchListTile(
-              title: const Text('Chat Notifications'),
-              subtitle: const Text('Messages and @mentions'),
+              title: Text(
+                'Chat Notifications',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              subtitle: Text(
+                'Messages and @mentions',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
               value: _chatNotificationsEnabled,
               onChanged: (value) =>
                   setState(() => _chatNotificationsEnabled = value),
+              activeColor: Theme.of(context).primaryColor,
             ),
 
             const Divider(height: 32),
 
             // Shopping Section
-            const Text(
+            Text(
               'Shopping',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue,
+              style: textTheme.titleMedium?.copyWith(
+                color: Theme.of(context).primaryColor,
               ),
             ),
             SwitchListTile(
-              title: const Text('Shopping List Updates'),
-              subtitle: const Text('When items are added or completed'),
+              title: Text(
+                'Shopping List Updates',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              subtitle: Text(
+                'When items are added or completed',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
               value: _shoppingListUpdatesEnabled,
               onChanged: (value) =>
                   setState(() => _shoppingListUpdatesEnabled = value),
+              activeColor: Theme.of(context).primaryColor,
             ),
             SwitchListTile(
-              title: const Text('Expense Updates'),
-              subtitle: const Text('When new expenses are added'),
+              title: Text(
+                'Expense Updates',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              subtitle: Text(
+                'When new expenses are added',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
               value: _expenseUpdateEnabled,
               onChanged: (value) =>
                   setState(() => _expenseUpdateEnabled = value),
+              activeColor: Theme.of(context).primaryColor,
             ),
 
             const SizedBox(height: 24),
@@ -415,8 +549,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: ElevatedButton(
                 onPressed: _saveNotificationSettings,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue[900],
+                  backgroundColor: Theme.of(context).primaryColor,
                   padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 child: const Text(
                   'Save Notification Settings',
@@ -440,7 +577,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             expandedHeight: 200.0,
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
-                color: Colors.blueAccent,
+                color: Theme.of(context).primaryColor,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
@@ -464,13 +601,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onTap: () {
                           // Handle changing the profile picture
                         },
-                        child: const CircleAvatar(
+                        child: CircleAvatar(
                           radius: 15,
                           backgroundColor: Colors.white,
                           child: Icon(
                             Icons.camera_alt,
                             size: 15,
-                            color: Colors.blueAccent,
+                            color: Theme.of(context).primaryColor,
                           ),
                         ),
                       ),
@@ -492,11 +629,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const SizedBox(height: 20),
                       TextFormField(
                         controller: _usernameController,
-                        decoration: const InputDecoration(
+                        style: Theme.of(context).textTheme.bodyLarge,
+                        decoration: InputDecoration(
                           labelText: 'Username',
-                          prefixIcon: Icon(Icons.person),
-                          helperText:
-                              'This name will be visible to other members',
+                          labelStyle: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: Theme.of(context).primaryColor,
+                          ),
+                          prefixIcon: Icon(Icons.person, color: Theme.of(context).primaryColor),
+                          helperText: 'This name will be visible to other members',
+                          helperStyle: Theme.of(context).textTheme.bodySmall,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: Theme.of(context).primaryColor,
+                            ),
+                          ),
                         ),
                         onChanged: (value) {
                           setState(() {
@@ -507,29 +657,79 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _emailController,
-                        decoration: const InputDecoration(
+                        style: Theme.of(context).textTheme.bodyLarge,
+                        decoration: InputDecoration(
                           labelText: 'Email Address',
-                          prefixIcon: Icon(Icons.email),
-                          helperText:
-                              'Your account email address cannot be changed',
+                          labelStyle: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: Theme.of(context).primaryColor,
+                          ),
+                          prefixIcon: Icon(Icons.email, color: Theme.of(context).primaryColor),
+                          helperText: 'Your account email address cannot be changed',
+                          helperStyle: Theme.of(context).textTheme.bodySmall,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
                         readOnly: true,
                         enabled: false,
+                      ),
+                      const SizedBox(height: 16),
+                      Consumer<ThemeNotifier>(
+                        builder: (context, themeNotifier, child) {
+                          return DropdownButtonFormField<String>(
+                            style: Theme.of(context).textTheme.bodyLarge,
+                            decoration: InputDecoration(
+                              labelText: 'Theme',
+                              labelStyle: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                color: Theme.of(context).primaryColor,
+                              ),
+                              prefixIcon: Icon(Icons.color_lens, color: Theme.of(context).primaryColor),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context).primaryColor,
+                                ),
+                              ),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'Blue',
+                                child: Text('Blue Theme'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Green',
+                                child: Text('Green Theme'),
+                              ),
+                            ],
+                            value: ThemeNotifier.getThemeName(themeNotifier.currentTheme),
+                            onChanged: (value) {
+                              if (value != null) {
+                                themeNotifier.setTheme(value);
+                                _saveThemePreference(value);
+                              }
+                            },
+                          );
+                        },
                       ),
                       const SizedBox(height: 24),
                       ElevatedButton(
                         onPressed: _isUsernameChanged ? _saveUsername : null,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue[900],
+                          backgroundColor: Theme.of(context).primaryColor,
                           disabledBackgroundColor: Colors.grey[400],
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: const Text(
+                        child: Text(
                           'Save Changes',
-                          style: TextStyle(color: Colors.white),
+                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -542,11 +742,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Text(
+                      Text(
                         'Household Members',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: Theme.of(context).primaryColor,
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -563,9 +762,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 String memberId = householdMembers[index];
                 String email = householdMemberEmails[memberId] ?? 'Loading...';
                 return ListTile(
-                  title: Text(email),
+                  title: Text(
+                    email,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
                   leading: CircleAvatar(
-                    child: Text(email[0].toUpperCase()),
+                    backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+                    child: Text(
+                      email[0].toUpperCase(),
+                      style: TextStyle(
+                        color: Theme.of(context).primaryColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 );
               },

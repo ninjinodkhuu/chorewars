@@ -199,7 +199,7 @@ class Gamification extends StatelessWidget {
         final householdID = snapshot.data!;
 
         return Scaffold(
-          backgroundColor: Colors.blue[50],
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           appBar: AppBar(
             backgroundColor: Colors.transparent,
             elevation: 0,

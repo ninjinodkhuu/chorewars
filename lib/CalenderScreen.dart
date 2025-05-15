@@ -669,7 +669,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final String formattedDate = formatter.format(DateTime.now());
 
     return Scaffold(
-      backgroundColor: Colors.blue[50],
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           // Header Section
@@ -896,7 +896,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                     ),
                                   ],
                                 ),
-                                if (task.comments != null && task.comments.trim().isNotEmpty)
+                                if (task.comments.trim().isNotEmpty)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 8.0),
                                     child: Text(
